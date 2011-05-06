@@ -99,3 +99,24 @@ apps/skin_engine.c
         compaction.
         This needs more looking, but for now it seems the easiest to replace
         buffer_alloc() with a static allocation.
+apps/mpeg.c and apps/playback.c
+    audio_init(): buffer_alloc() for a cuesheet struct (~72K!!!), depending
+        on whether cuesheet support is enabled by the user. This allocation
+        holds the currently active cuesheet
+    usage:
+        The pointer to this cuesheet is saved to the current struct mp3entry,
+        and thus exported to other modules. struct cuesheet consists only of
+        several arrays and there's no CR involved. The actual cuesheet is mostly
+        passed to functions in cuesheet.c.
+        Additionally, the skin engine draws text from the arrays in the
+        cuesheet struct, however it seems to re-query the pointers before
+        drawing.
+    compaction: The yield()s cuesheet.c is complicating things. Allocation
+        of the current cuesheet could be handled there entirely making it local
+        to cuesheet.c. Other modules could work with the handle id (also
+        in the mp3entry struct) and call buflib_get_data(). This way
+        the drawing by the skin engine wouldn't be problematic problematic.
+        However, SWCODEC works with other cuesheet structs (bufalloc()'d from
+        the audio buffer) and pointers (or rather buffering handles), so
+        those would need separate handling. At least the cuesheet struct is
+        moveable without futher means.
