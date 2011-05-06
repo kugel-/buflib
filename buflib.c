@@ -32,12 +32,15 @@
  * to be moved to free space, allocations grow up in address from the start of
  * the buffer. The buffer is treated as an array of union buflib_data. Blocks
  * start with a length marker, which is included in their length. Free blocks
- * are marked by negative length, allocated ones use the second buflib_data in
+ * are marked by negative length, allocated ones use the a buflib_data in
  * the block to store a pointer to their handle table entry, so that it can be
- * quickly found and updated during compaction. The allocator functions are
- * passed a context struct so that two allocators can be run, for example, one
- * per core may be used, with convenience wrappers for the single-allocator
- * case that use a predefined context.
+ * quickly found and updated during compaction. That pointer follows a
+ * character array containing the string identifier of the allocation. After the
+ * array there is another buflib_data containing the length of that string +
+ * the sizeo of this buflib_data.
+ * The allocator functions are passed a context struct so that two allocators
+ * can be run, for example, one per core may be used, with convenience wrappers
+ * for the single-allocator case that use a predefined context.
  */
 
 /* Initialize buffer manager */
@@ -127,6 +130,7 @@ handle_table_shrink(struct buflib_context *ctx)
 static bool
 buflib_compact(struct buflib_context *ctx)
 {
+    BDEBUGF("%s(): Comacting!");
     union buflib_data *block = ctx->first_free_block, *new_block;
     int shift = 0, len;
     /* Store the results of attempting to shrink the handle table */
@@ -147,8 +151,11 @@ buflib_compact(struct buflib_context *ctx)
          */
         if (shift)
         {
+            union buflib_data* tmp = block[1].ptr->ptr;
+            BDEBUGF("%s(): moving \"%s\" by %d(%d)\n", __func__, &block[2].name,
+                    shift, shift*sizeof(union buflib_data));
             new_block = block + shift;
-            block[1].ptr->ptr = new_block + 2;
+            block[1].ptr->ptr += shift; /* update handle table */
             memmove(new_block, block, len * sizeof(union buflib_data));
         }
     }
@@ -212,12 +219,23 @@ buflib_buffer_in(struct buflib_context *ctx, int size)
 int
 buflib_alloc(struct buflib_context *ctx, size_t size)
 {
+    return buflib_alloc_ex(ctx, size, NULL);
+}
+
+int
+buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name)
+{
     union buflib_data *handle, *block;
+    size_t name_len = name ? ALIGN_UP(strlen(name), sizeof(union buflib_data)) : 0;
     bool last = false;
     /* This really is assigned a value before use */
     int block_len;
+    size += name_len;
     size = (size + sizeof(union buflib_data) - 1) /
-           sizeof(union buflib_data) + 2;
+           sizeof(union buflib_data)
+           /* add 3 objects for alloc len, pointer to handle table entry and
+            * name length */
+           + 3;
 handle_alloc:
     handle = handle_alloc(ctx);
     if (!handle)
@@ -278,9 +296,13 @@ buffer_alloc:
     /* Set up the allocated block, by marking the size allocated, and storing
      * a pointer to the handle.
      */
+    union buflib_data *name_len_slot;
     block->val = size;
     block[1].ptr = handle;
-    handle->ptr = block + 2;
+    strcpy(&block[2].name, name);
+    name_len_slot = (union buflib_data*)ALIGN_UP((uintptr_t)((char*)&block[2] + name_len), sizeof(union buflib_data));
+    name_len_slot->val = 1 + name_len/sizeof(union buflib_data);
+    handle->ptr = name_len_slot + 1;
     /* If we have just taken the first free block, the next allocation search
      * can save some time by starting after this block.
      */
@@ -302,9 +324,12 @@ void
 buflib_free(struct buflib_context *ctx, int handle_num)
 {
     union buflib_data *handle = ctx->handle_table - handle_num,
-                      *freed_block = handle->ptr - 2,
+                      *freed_block = handle->ptr,
                       *block = ctx->first_free_block,
                       *next_block = block;
+    /* jump over the string to find the beginning of the block */
+    size_t name_len = freed_block[-1].val;
+    freed_block = freed_block - name_len - 2;
     /* We need to find the block before the current one, to see if it is free
      * and can be merged with this one.
      */

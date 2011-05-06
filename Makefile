@@ -1,9 +1,10 @@
 CC ?= gcc
-CFLAGS += -g -O -DDEBUG
+CFLAGS += -g -O0 -DDEBUG
 
 TARGET = buflib
 
 OBJ = 	buflib.o \
+		new_apis.o \
 		main.o
 
 

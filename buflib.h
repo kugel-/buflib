@@ -24,11 +24,14 @@
 ****************************************************************************/
 
 #ifndef _BUFLIB_H_
+#define _BUFLIB_H_
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 /* from "debug.h" */
 #ifdef DEBUG
+    #include <stdio.h>
     #define BDEBUGF printf
 #else
     #define BDEBUGF(...) do { } while(0)
@@ -53,6 +56,7 @@
 union buflib_data
 {
     intptr_t val;
+    char name;
     union buflib_data *ptr;
 };
 
