@@ -46,3 +46,21 @@ firmware/dircache.c
         -> this perhaps needs a
         lock, user supplied buffer to copy the entry or invalidation (need
         to analyze the callers more; only tagcache.c and playlist.c so far)
+apps/dsp.c
+    dsp_timestretch_enable(): buffer_alloc() on boot, and only if timestretch
+        is enabled. size is fixed.
+    usage:
+        the buffer is used for resamping, depending on timestretch.
+        resample_buf is toggled between small_resample_buf and big_resample_buf.
+        It's then used only used in resample(), apparently without yield().
+    compaction:
+        resample() doesn't know if it's a buflib buffer or a static
+        buffer, so buflib_get_data() doesn't seem possible; but the compaction
+        callback can detect this and act accordingly. Since resample() doesn't
+        yield no CA is expected and compation should work without much hassle.
+
+        Alternatively small_resample_buf could be made a buflib allocation as
+        well, as it's unused if timestretch is enabled. Then resample()
+        could call buflib_get_data() unconditionally. However, for speed,
+        small_resample_buf is allocated in IRAM so it has a downside.
+        (buflib allocs from IRAM with a separate buflib_context perhaps?).
