@@ -1,0 +1,48 @@
+firmware/dircache.c
+    dircache_init(): buffer_alloc for each d_name in the opendirs array
+        * the opendirs dirs array is statically allocated, there's no
+        reason the d_name in it shouldn't also;
+        * reason for buffer_alloc() is probably that d_name needs to be a pointer
+    dircache_load(): first buffer_alloc(0) to determine the start of buffer
+        * this is in within HAVE_EEPROM_SETTINGS, the first buffer_alloc()
+          is to check whether the buffer start matches the buffer start
+          in the dump on disk, if it it is the dump is loaded to memory as-is,
+          otherwise dircache is fully reinitialized
+        * this relies on reproducable boots (identical buffer_alloc() calls) and
+          determininistic buffers from buffer_alloc(). This should work with
+          buflib also. In any event, it only affects HAVE_EEPROM_SETTINGS (h100?)
+          and it's probably non-fatal if it doesn't work anymore
+    *dircache_build(): buffer_alloc()s if the dircache size is known (e.g.
+          from previous boots), otherwise audiobuf is accessed directly.
+        * in the first case, the buffer size is known and allocated,
+          followed by a "transparent build" (i.e. in background);
+          should be easily replacable with buflib
+        * in the second case, the buffer size is unknown and a foreground
+          build is started; this relies on no other thread being able temop to
+          run for exclusive access; not possible with current buflib
+            -> need to implement some buflib_get_all() which may possibly
+            resizeable/reallocable
+          (see also dircache_do_rebuild())
+    usage of the allocation:
+        if not buffer_alloc()d, it's only temporarilly used, probably no
+        concurrent access (CA) issues (that or it would be completely
+        broken currently)
+        if buffer_alloc()'d, then the buffer is used throughout runtime to
+        allocate dircache_entry structs and the d_name member of it (separately,
+        d_name is allocated as needed); access happens via dircache_root and
+        offset (dirache_root+dircache_size, etc)
+    considerations for compaction
+        dircache.c itself can probably handle compation just fine, since
+        it's using an offset-to-pointer mechanism already and keeps track
+        of all sub-allocations (via dircache_entry->next etc)
+        however, dircache_get_entry_ptr() exports dircache_entrys (and thus d_names)
+        from the buffer to the caller for unknown time; therefore compaction
+        of this buffer is not always safe :(
+        Additionally, a pointer to a dircache_entry is saved in DIR_CACHED,
+        every DIR_CACHED is from the opendirs array (local to dircache.c)
+        and they have a busy flag; DIR_CACHED is opaque for callers (so
+        no direct dircache_entry access) and d_name is copied to separately
+        allocated storage
+        -> this perhaps needs a
+        lock, user supplied buffer to copy the entry or invalidation (need
+        to analyze the callers more; only tagcache.c and playlist.c so far)
