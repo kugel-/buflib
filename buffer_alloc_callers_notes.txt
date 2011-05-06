@@ -83,3 +83,19 @@ apps/filetypes.c
         so buflib_get_data() calls should work just fine. But the filetypes
         array can also walked through in the compaction callback. Compaction
         should be no issue here, but the tiny allocations are suboptimal.
+apps/skin_engine.c
+    theme_init_buffer(): On native targets, buffer_alloc() the skin buffer with
+        a fixed size. The function is only called on boot in init(). It seems
+        to be replacable by a static allocation. On application targets malloc()
+        is used and thus isn't relevant for buflib.
+    usage: The skin engine has it's own memory management. One can allocate
+        from the skin buffer with skin_buffer_alloc() which returns a pointer
+        It's then up to the skin element what happens with that, it very probably
+        creates cross references (CR) into the buffer. The memory is also
+        exposed to other modules, such as in the backdrop case.
+        The skin buffer is reset upon theme (re)loading.
+    compaction: It looks like very extensive changes are needed in the skin
+        engine. Both CR and exposure to other modules are complicating
+        compaction.
+        This needs more looking, but for now it seems the easiest to replace
+        buffer_alloc() with a static allocation.
