@@ -64,3 +64,22 @@ apps/dsp.c
         could call buflib_get_data() unconditionally. However, for speed,
         small_resample_buf is allocated in IRAM so it has a downside.
         (buflib allocs from IRAM with a separate buflib_context perhaps?).
+apps/filetypes.c
+    filetypes_strdup(): buffer_alloc() for each call. It allocates a string
+        buffer for the argument to hold a copy (i.e. like standard strdup)
+        It is called from filetypes_store_plugin() and read_config(),
+        each only called from filetypes_init(). It's probably called often,
+        for tiny sizes, which is not ideal for buflib.
+    usage:
+        The buffer is used for the in-memory representation of viewers.config,
+        setup at boot. the result of filetypes_strdup() is stored in
+        in filetypes array. No pointers are exposed to other modules,
+        except in openwith_get_name(), which is pretty safe as it's called
+        by the list drawing (if it was unsafe, it could be copied into the buffer
+        passed to openwith_get_name()).
+    compaction:
+        The filetypes array could safe the ids instead of raw pointers,
+        the buffer is almost exclusively used in filetypes.c (see usage),
+        so buflib_get_data() calls should work just fine. But the filetypes
+        array can also walked through in the compaction callback. Compaction
+        should be no issue here, but the tiny allocations are suboptimal.
