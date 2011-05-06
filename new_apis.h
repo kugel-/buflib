@@ -24,4 +24,5 @@
 
 const char* buflib_get_name(struct buflib_context *ctx, int handle);
 int buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name);
+void buflib_print_allocs(struct buflib_context *ctx);
 #endif /* __NEW_APIS_H__ */

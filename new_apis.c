@@ -31,3 +31,27 @@ const char* buflib_get_name(struct buflib_context *ctx, int handle)
     const char *ret = &data[-len].name;
 }
 
+void buflib_print_allocs(struct buflib_context *ctx)
+{
+    union buflib_data *this, *end = ctx->handle_table;
+    for(this = end - 1; this >= ctx->last_handle; this--)
+    {
+        if (!this->ptr) continue;
+
+        int handle_num;
+        const char *name;
+        union buflib_data *block_start, *alloc_start;
+        intptr_t alloc_len;
+
+        handle_num = end - this;
+        name = buflib_get_name(ctx, handle_num);
+        block_start = (union buflib_data*)name - 2;
+        alloc_start = buflib_get_data(ctx, handle_num);
+        alloc_len = block_start->val * sizeof(union buflib_data);
+
+        printf("%s:\t%0p\n"
+               "   \t%0p\n"
+               "   \t%ld\n",
+               name?:"(null)", block_start, alloc_start, alloc_len);
+    }
+}
