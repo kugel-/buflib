@@ -120,3 +120,38 @@ apps/mpeg.c and apps/playback.c
         the audio buffer) and pointers (or rather buffering handles), so
         those would need separate handling. At least the cuesheet struct is
         moveable without futher means.
+apps/playlist.c
+    playlist_init(): 3 buffer_alloc() for the static current playlist struct.
+        playlist.indices and playlist.filenames are allocated according to the
+        max_playlist_size setting, playlist.buffer is allocated according to the
+        max_files_in_dir setting. playlist_init() is called only once during boot
+        in init().
+    usage:
+        indices seems to primarily save
+        the seek position into the playlist file the playlist is based off, or
+        the offset into playlist.buffer in case of an in-ram playlist.
+        buffer is apparently used to save filenames for in-ram playlist. It
+        is only accessed as start of an array, with playlist.buffer_end_pos
+        indicating the current position(as offset). Only playlist_save makes
+        a copy of playlist.buffer.
+        playlist.filenames saves pointers to dircache entries, which itself
+        are buflib affected, but that doesn't matter here.
+        indices and filenames are both exposed to other modules in
+        playlist_create_ex() (if index_buffer == NULL). However, this code
+        path is never executed, because the only caller calls it with
+        a non-NULL index_buffer-
+    compaction:
+        If the unused code path in playlist_create_ex() is removed compation
+        should be relatively painless with a callback. It seems bad practise
+        to assign that buffers to a foreign playlist anyway.
+apps/scrobbler.c
+    scrobbler_init(): buffer_alloc() to alloc a cache of (string) entries,
+        depending on the enable scrobbling user setting.
+    usage:
+        usage is straight forward. It's only used within scrobbler.c, not exposed
+        and no CR. it's accessed as an array, no clever compaction for
+        short strings. Over time entries are added, when the buffer is full
+        it's flushed to disk.
+    compaction:
+        Since it's accessed as an array, compaction should be painless. No
+        yield()s between access, so buflib_get_data() should work well.
