@@ -155,3 +155,30 @@ apps/scrobbler.c
     compaction:
         Since it's accessed as an array, compaction should be painless. No
         yield()s between access, so buflib_get_data() should work well.
+apps/tagcache.c
+    tagcache_dumpload(): Exactly the same mechanism as in dircache_load().
+    allocate_tagcache(): buffer_alloc for the ramcache. The last size, plus
+        some spare for new entries (just like dircache w/ transparent build).
+        it's saved in the hdr variable which isn't modified. No buffer_alloc
+        if ramcache isn't available or deactivated.
+    usage:
+        The buffer has two parts, both filled in tagcache_load(). T
+        he first is the indices from the master index
+        it can be treated as an array of index_entry structs.
+        The other part is a collection of tagfile_entry structs including their
+        data (string value). For each tag a CR is saved in ramcache_header.tags,
+        from there you can walk through the indices with tagfile_entry.tag_length.
+        Pointers into the buffer are exposed via tagcache searches when
+        the result pointer is set to the appropriate tagfile_entry.tag_data
+        field.
+        tagcache_fill_tags() also exposes lots of pointers.
+    compaction:
+        Since tagcache loads from disk (the on-disk representation knowns no
+        pointer) it's generally well prepared for moving data. tagcache_dumpload()
+        also shows this and how to fix CR if the buffer position changed
+        (the same could be done in the callback).
+        The exposure of pointers is a bit tricky. For non-ramcache a static
+        buffer is used for the result. So it's perhaps best to use that
+        for ramcache too rather than returning the pointer directly (or
+        demand a caller supplied buffer). for tagcache_fill_tags(), the
+        mp3entry.id3v2buf member could be used.
