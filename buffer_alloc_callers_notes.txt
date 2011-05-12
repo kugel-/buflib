@@ -182,3 +182,39 @@ apps/tagcache.c
         for ramcache too rather than returning the pointer directly (or
         demand a caller supplied buffer). for tagcache_fill_tags(), the
         mp3entry.id3v2buf member could be used.
+apps/tree.c
+    tree_mem_init(): 2 buffer_alloc() for the entry buffers. The first creates
+        and array of struct entries, the second creates an string vector.
+    usage:
+        The buffers are actually used by filetree.c and tagtree.c. The former
+        builds a cache of the current directory, mainly for sorting purposes.
+        The latter does the same, however it does use the a struct tagtree_entry,
+        which is coincidentally of the same size (assuming padding), but
+        otherwise incomaptible. In both cases, the name member of the struct
+        points to the correspinding string in the second buffer (or sometimes
+        to static storage).
+        * tree.c: The strings in the name buffer are passed to a couple of
+          functions, like the list drawing routine, talk_spell(),
+          filetype_get_icon().
+        * filetree.c: the two buffers are filled ft_load (subject to file
+          filtering), then sorted according to the user setting. Other than that
+          it's passed to ft_play_playlist(), playlist_add() and str*cmp() a
+          few times. The entry structs are used in a couple more places, each
+          time used as an array.
+        * tagtree.c: the two buffers are filled in retrieve_entries() and
+          load_root(). Here's then name member points more often to static
+          storage. Again, the entries are passed to qsort() later on. It's
+          the buffers are also indirectly passed to tagtree functions.
+    compaction:
+        At first sight compaction seems not so difficult. The entry buffer
+        is an array and only accessed as such, the second contains strings
+        only and is freely movable. However, the exposure to {file,tag}tree.c
+        complicats things. At least yield()s doesn't seem to be much of a problem,
+        and there aren't actually too many places querying the buffers, as it's
+        mostly looped over.
+        What could become difficult is the fact that the name member often points
+        to static storage, which must not be fixed up in a potential
+        compation callback, while the CRs into the name buffer need to.
+    general: The interaction between these files shocked me, and I started
+        refactoring in a separate branch. This work will hopefully make
+        the buffer handling be simpler and more buflib friendly.
