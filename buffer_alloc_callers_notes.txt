@@ -233,3 +233,30 @@ apps/tdspeed.c
         It's problematic that outbuf is exposed to dsp.c, because the caller
         uses them and yield()s inbetween. Perhaps dsp.c should query
         buflib_get_data().
+apps/talk.c
+    *reset_state(): 1 buffer_alloc on SWCODEC for the "thumbnail" buffer, only
+        if it hasn't been already allocated. Thus only if the caller is
+        talk_init().
+        Things are a lot different for HWCODEC. The entire audiobuf is used
+        directly for the thumbnails (music and voice can't be mixed on HWCODEC)
+    *load_voicefile(): Direct audiobuf allocation to load the voicefile
+        partially or in its entirety. If partially loaded, then memory is set
+        aside after the voice file header for a limited number of clips.
+    usage:
+        Both buffers are used mostly privately and accessed as array. The only
+        exposed data seems to be when the voice files are actually do be played,
+        then it's passed to the voice thread (or directly to HW on HWCODEC).
+        The direct audiobuf use is due to reloading voice files on language
+        change. Effectively the voice file buffer is re-allocated then.
+        A mechanism to steal the talk buffer exists for buffer_alloc()s
+        after the initial allocation.
+
+        NOTE for HWCODEC: Access to the MP3 hardware is exclusive, so only one
+        one of audio, voice or talk clips can play, this is why each of those
+        generally claim the entire audio buffer.
+    compaction:
+        Compaction doesn't look very complicated as the buffers are private
+        and used as arrays. However, when actually playing the voice, special
+        care must be taken. Especially on HWCODEC, where a ISR calls a callback,
+        the data may not actually move (probably).
+
