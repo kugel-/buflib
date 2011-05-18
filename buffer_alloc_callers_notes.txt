@@ -218,3 +218,18 @@ apps/tree.c
     general: The interaction between these files shocked me, and I started
         refactoring in a separate branch. This work will hopefully make
         the buffer handling be simpler and more buflib friendly.
+apps/tdspeed.c
+    tdspeed_init(): 4 buffer_alloc() for 2 overlay buffer and 2 output buffer
+        for the timestretch dsp effect, only if timestretch is enabled in
+        the settings.
+    usage:
+        The overlay buffer is some kind temp buffer to mix subsequent samples.
+        Even though it's base is assigned to tdspeed_state_s:ovl_buf, it's
+        used privately in tdspeed.c
+        The output buffer are only referenced in tdspeed_apply(), however it's
+        assigned to an outgoing pointer array which is used in dsp.c
+        Both buffers are only accessed as arrays
+    compaction:
+        It's problematic that outbuf is exposed to dsp.c, because the caller
+        uses them and yield()s inbetween. Perhaps dsp.c should query
+        buflib_get_data().
