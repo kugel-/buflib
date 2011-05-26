@@ -259,4 +259,53 @@ apps/talk.c
         and used as arrays. However, when actually playing the voice, special
         care must be taken. Especially on HWCODEC, where a ISR calls a callback,
         the data may not actually move (probably).
-
+tagtree.c
+    read_clause(): 2 buffer_alloc() for a search clauses' string. Only one or the other
+        happens, and the first one is fixed size.
+    get_format_str(): 1 buffer_alloc() for the format string (to be displayed
+        in the db browser)
+    add_format(): 2 buffer_alloc(), 1 for a display_format struct and 1 for
+        a tagcache_search_clause struct
+    get_condition(): 2 buffer_alloc(), bothfor tagcache_search_clause struct.
+    parse_search(): 1 buffer_alloc() for a struct menu_root
+    parse_line(): 3 buffer_alloc() for two struct menu_root and a struct
+        search_instruction
+    tagtree_init(): 1 buffer_alloc() for the uniquebuf
+    usage:
+        struct menu_root has a char array for which is used for the title
+        to display in lists (tagtree_get_title()). It also has a pointer array
+        holding pointers to struct menu_entrys. struct menu_entry has a
+        similar char array for the entry names. A pointer to that array is stored
+        into the struct tagentry (load_root()).
+        At the same time when a struct menu_entry is allocated, a struct
+        search_instruction is also allocated (so they're not allocated
+        independantly).
+        The struct tagcache_search_clause, including their allocated str member,
+        are passed to the tagcache for searching and checking (tagchache_{add,check}_clause()).
+        They are added to the tagcache search in loops according to the
+        "dirlevel" in the tagcache browser so that search results are filtered.
+        There are potential yield()s when the tagcache search runs.
+        struct search_instruction is similar to struct tagcache_search_clause,
+        aiding tagcache search (e.g. it has the tags to filter). The name
+        member seems to be entirely unused and can probably removed, and nothing
+        seems to be be exported to other modules.
+        struct display_format saves information about displaying search results,
+        the name member of the struct seems only be used during parsing, after
+        that the group_id because format strings can share the identifier. Nothing
+        of it seems to be exposed to anything.
+        The uniqbuf is only allocated and directly passed to tagcache where
+        it's tied to a tagcache_search struct. Tagcache doesn't do a lot with it,
+        it just adds unique indexes to the list if there weren't some to
+        eleminate duplicate entries.
+    compaction:
+        The title char arrays in the structs are possible a bit problematic,
+        because they're passed to the list. The pointer stored in tagentry
+        should possibly replaced by some other logic because the menu_entrys
+        are allocated separately from tagentry. the struct search_instruction and
+        struct display_format seem painless to convert. Most problematic seems
+        tagcache_clause because compaction potentially happens during a
+        tagcache_search in which it will be tricky to move the structs.
+        OTOH tagcache shouldn't need to know whether the structs are buflib-backed
+        or not so it needs to be resolved within tagtree.c
+        The MM in tagtree.c is overly complicated with several allocations
+        happening, it needs more looking into later
