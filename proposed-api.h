@@ -41,12 +41,12 @@ int core_alloc_ex(const char* name, size_t size, struct buflib_callbacks *ops);
  *
  * Returns: An integer handle identifyign the new allocation.
  */
-int core_realloc(int id, size_t new_size)
+int core_realloc(int handle, size_t new_size)
 
 /**
- * Free memory associated with the given id
+ * Free memory associated with the given handle
  */
-void core_free(int id);
+void core_free(int handle);
 
 /**
  * Callbacks used by the buflib to inform allocation that compaction
@@ -64,7 +64,7 @@ struct buflib_callbacks {
      * This is called before data is moved. Use this to fix up any pointers
      * pointing to within the allocation. The size is unchanged
      *
-     * id: The corresponding handle
+     * handle: The corresponding handle
      * old: The old start of the allocation
      * new: The new start of the allocation
      *
@@ -74,14 +74,14 @@ struct buflib_callbacks {
      * If NULL: this allocation must not be moved around by the buflib when
      * compation occurs
      */
-    int (*move_callback)(int id, void* old, void* new);
+    int (*move_callback)(int handle, void* old, void* new);
     /**
      * This is called when the buflib desires to shrink a SHRINKABLE buffer
      * in order to satisfy new allocation and if moving other allocations
      * failed.
      * Call core_shrink() from within the callback to do the shrink.
      *
-     * id: The corresponding handle
+     * handle: The corresponding handle
      * start: The old start of the allocation
      *
      * Return: Return BUFLIB_CB_OK, or BUFLIB_CB_CANNOT_SHRINK if shirinking
@@ -91,7 +91,7 @@ struct buflib_callbacks {
      * It is recommended that allocation thatmust not move are
      * at least RESIZABLE
      */
-    int (*shrink_callback)(int id, void* start, size_t old_size);
+    int (*shrink_callback)(int handle, void* start, size_t old_size);
 };
 
 /**
@@ -105,13 +105,13 @@ struct buflib_callbacks {
 
 
 /**
- * Shrink the memory allocation associated with the given id
+ * Shrink the memory allocation associated with the given handle
  * Mainly intended to be used with the shrink callback (call this in the
  * callback and get return BUFLIB_CB_OK, but it can also be called outside
  *
  * new_start, new_end: The new boundaries of the allocation
  */
-void core_shrink(int id, void* new_start, void* new_end);
+void core_shrink(int handle, void* new_start, void* new_end);
 
 /**
  * Returns how many bytes left the buflib has to satisfy allocations
