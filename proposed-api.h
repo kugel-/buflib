@@ -31,7 +31,7 @@ int core_alloc(const char* name, size_t size);
  *
  * Returns: An integer handle identifying this allocation
  */
-int core_alloc_ex(const char* name, size_t size, unsigned flags, struct buflib_callbacks *ops);
+int core_alloc_ex(const char* name, size_t size, struct buflib_callbacks *ops);
 
 /**
  * Re-allocate memory assiciated by the given id, preserving the data
@@ -47,19 +47,6 @@ int core_realloc(int id, size_t new_size)
  * Free memory associated with the given id
  */
 void core_free(int id);
-
-/**
- * Flags in core_alloc_ex() can be one of:
- */
-
-/* Denotes that this allocation must not be moved around by the buflib when
- * compation occurs
- */
-#define BUFLIB_MUST_NOT_MOVE  (1<<0)
-/* Denotes that this allocation can be resized. You must provide a resize
- * callback
- * It is recommended that a MUST_NOT_MOVE allocation is at least RESIZABLE */
-#define BUFLIB_SHRINKABLE      (1<<0)
 
 /**
  * Callbacks used by the buflib to inform allocation that compaction
@@ -83,6 +70,9 @@ struct buflib_callbacks {
      *
      * Return: Return BUFLIB_CB_OK, or BUFLIB_CB_DEFER if
      * movement is impossible in this moment
+     *
+     * If NULL: this allocation must not be moved around by the buflib when
+     * compation occurs
      */
     int (*move_callback)(int id, void* old, void* new);
     /**
@@ -96,6 +86,10 @@ struct buflib_callbacks {
      *
      * Return: Return BUFLIB_CB_OK, or BUFLIB_CB_CANNOT_SHRINK if shirinking
      * is impossible at this moment.
+     *
+     * if NULL: this allocation cannot be resized.
+     * It is recommended that allocation thatmust not move are
+     * at least RESIZABLE
      */
     int (*shrink_callback)(int id, void* start, size_t old_size);
 };
@@ -106,9 +100,6 @@ struct buflib_callbacks {
  */
 /* Everything alright */
 #define BUFLIB_CB_OK
-/* Denotes that buflib shall try to post-pone further compaction and yield
- * so that the allocation-owner can more safely allow compaction */
-#define BUFLIB_CB_DEFER
 /* Tell buflib that resizing failed, possibly future making allocations fail */
 #define BUFLIB_CB_CANNOT_SHRINK
 
@@ -121,3 +112,11 @@ struct buflib_callbacks {
  * new_start, new_end: The new boundaries of the allocation
  */
 void core_shrink(int id, void* new_start, void* new_end);
+
+/**
+ * Returns how many bytes left the buflib has to satisfy allocations
+ *
+ * There might be more after a future compaction which is not handled by
+ * this function.
+ */
+size_t core_available(void);
