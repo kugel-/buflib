@@ -24,7 +24,7 @@
 #include "buflib.h"
 #include "new_apis.h"
 
-#define BUFLIB_BUFFER_SIZE (10<<10)
+#define BUFLIB_BUFFER_SIZE (12<<10)
 static char buflib_buffer[BUFLIB_BUFFER_SIZE];
 static struct buflib_context ctx;
 #define assert(x) do { if (!(x)) exit(1); } while(0)
@@ -49,8 +49,8 @@ int main(int argc, char **argv)
         buflib_free(&ctx, id2);
         buflib_print_allocs(&ctx);
 
-        id = buflib_alloc_ex(&ctx, 512, "should compact");
-        if (id <= 0) printf("compacting alloc failed");
+        id = buflib_alloc_ex(&ctx, 3<<10, "should compact");
+        if (id <= 0) printf("compacting alloc failed\n");
 
         buflib_print_allocs(&ctx);
 
