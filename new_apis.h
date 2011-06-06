@@ -22,7 +22,14 @@
 #ifndef __NEW_APIS_H__
 #define __NEW_APIS_H__
 
+#include <string.h>
+#include "buflib.h"
+#include "proposed-api.h"
+
 const char* buflib_get_name(struct buflib_context *ctx, int handle);
-int buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name);
+int buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name,
+                    struct buflib_callbacks *ops);
 void buflib_print_allocs(struct buflib_context *ctx);
+size_t buflib_available(struct buflib_context *ctx);
+void buflib_shrink(struct buflib_context *ctx, int handle, void* newstart, void* newend);
 #endif /* __NEW_APIS_H__ */

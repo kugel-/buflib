@@ -25,6 +25,7 @@
 
 #include <stdlib.h> /* for abs() */
 #include "buflib.h"
+#include "new_apis.h"
 /* The main goal of this design is fast fetching of the pointer for a handle.
  * For that reason, the handles are stored in a table at the end of the buffer
  * with a fixed address, so that returning the pointer for a handle is a simple
@@ -130,7 +131,7 @@ handle_table_shrink(struct buflib_context *ctx)
 static bool
 buflib_compact(struct buflib_context *ctx)
 {
-    BDEBUGF("%s(): Comacting!");
+    BDEBUGF("%s(): Compacting!\n", __func__);
     union buflib_data *block = ctx->first_free_block, *new_block;
     int shift = 0, len;
     /* Store the results of attempting to shrink the handle table */
@@ -219,12 +220,14 @@ buflib_buffer_in(struct buflib_context *ctx, int size)
 int
 buflib_alloc(struct buflib_context *ctx, size_t size)
 {
-    return buflib_alloc_ex(ctx, size, NULL);
+    return buflib_alloc_ex(ctx, size, NULL, NULL);
 }
 
 int
-buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name)
+buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name,
+                struct buflib_callbacks *ops)
 {
+    (void)ops;
     union buflib_data *handle, *block;
     size_t name_len = name ? ALIGN_UP(strlen(name), sizeof(union buflib_data)) : 0;
     bool last = false;

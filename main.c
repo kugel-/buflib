@@ -33,9 +33,9 @@ int main(int argc, char **argv)
 {
 	buflib_init(&ctx, buflib_buffer, BUFLIB_BUFFER_SIZE);
 
-    int id = buflib_alloc_ex(&ctx, 512, "foo");
-    int id2 = buflib_alloc_ex(&ctx, 1024, "bar");
-    int id3 = buflib_alloc_ex(&ctx, 8<<10, "8K");
+    int id = buflib_alloc_ex(&ctx, 512, "foo", NULL);
+    int id2 = buflib_alloc_ex(&ctx, 1024, "bar", NULL);
+    int id3 = buflib_alloc_ex(&ctx, 8<<10, "8K", NULL);
 
     assert(id > 0 && id2 > 0 && id3 > 0);
 
@@ -49,13 +49,13 @@ int main(int argc, char **argv)
         buflib_free(&ctx, id2);
         buflib_print_allocs(&ctx);
 
-        id = buflib_alloc_ex(&ctx, 3<<10, "should compact");
+        id = buflib_alloc_ex(&ctx, 3<<10, "should compact", NULL);
         if (id <= 0) printf("compacting alloc failed\n");
 
         buflib_print_allocs(&ctx);
 
         printf("id I: %p\n", buflib_get_data(&ctx, id3));
-        id2 = buflib_alloc_ex(&ctx, 3<<10, "should fail");
+        id2 = buflib_alloc_ex(&ctx, 3<<10, "should fail", NULL);
         printf("id II: %p\n", buflib_get_data(&ctx, id3));
         if (id2 <= 0) printf("failing alloc failed\n");
         else buflib_free(&ctx, id2);
