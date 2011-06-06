@@ -35,7 +35,8 @@
  * start with a length marker, which is included in their length. Free blocks
  * are marked by negative length, allocated ones use the a buflib_data in
  * the block to store a pointer to their handle table entry, so that it can be
- * quickly found and updated during compaction. That pointer follows a
+ * quickly found and updated during compaction. Followed by that, there's
+ * the pointer to the corresponding struct buflib. That pointer follows a
  * character array containing the string identifier of the allocation. After the
  * array there is another buflib_data containing the length of that string +
  * the sizeo of this buflib_data.
@@ -152,11 +153,17 @@ buflib_compact(struct buflib_context *ctx)
          */
         if (shift)
         {
-            union buflib_data* tmp = block[1].ptr->ptr;
-            BDEBUGF("%s(): moving \"%s\" by %d(%d)\n", __func__, &block[2].name,
-                    shift, shift*sizeof(union buflib_data));
+            union buflib_data* tmp = block[1].ptr;
+            struct buflib_callbacks *ops = block[2].ops;
+            int handle = ctx->handle_table - tmp;
+            BDEBUGF("%s(): moving \"%s\"(id=%d) by %d(%d)\n", __func__, &block[3].name,
+                    handle, shift, shift*sizeof(union buflib_data));
             new_block = block + shift;
-            block[1].ptr->ptr += shift; /* update handle table */
+            /* call the callback before moving */
+            if (ops && ops->move_callback)
+                ops->move_callback(handle, tmp->ptr, tmp->ptr+shift);
+
+            tmp->ptr += shift; /* update handle table */
             memmove(new_block, block, len * sizeof(union buflib_data));
         }
     }
@@ -227,7 +234,6 @@ int
 buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name,
                 struct buflib_callbacks *ops)
 {
-    (void)ops;
     union buflib_data *handle, *block;
     size_t name_len = name ? ALIGN_UP(strlen(name), sizeof(union buflib_data)) : 0;
     bool last = false;
@@ -237,8 +243,8 @@ buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name,
     size = (size + sizeof(union buflib_data) - 1) /
            sizeof(union buflib_data)
            /* add 3 objects for alloc len, pointer to handle table entry and
-            * name length */
-           + 3;
+            * name length, and the ops pointer */
+           + 4;
 handle_alloc:
     handle = handle_alloc(ctx);
     if (!handle)
@@ -302,8 +308,9 @@ buffer_alloc:
     union buflib_data *name_len_slot;
     block->val = size;
     block[1].ptr = handle;
-    strcpy(&block[2].name, name);
-    name_len_slot = (union buflib_data*)ALIGN_UP((uintptr_t)((char*)&block[2] + name_len), sizeof(union buflib_data));
+    block[2].ops = ops;
+    strcpy(&block[3].name, name);
+    name_len_slot = (union buflib_data*)ALIGN_UP((uintptr_t)((char*)&block[3] + name_len), sizeof(union buflib_data));
     name_len_slot->val = 1 + name_len/sizeof(union buflib_data);
     handle->ptr = name_len_slot + 1;
     /* If we have just taken the first free block, the next allocation search
@@ -332,7 +339,7 @@ buflib_free(struct buflib_context *ctx, int handle_num)
                       *next_block = block;
     /* jump over the string to find the beginning of the block */
     size_t name_len = freed_block[-1].val;
-    freed_block = freed_block - name_len - 2;
+    freed_block = freed_block - name_len - 3;
     /* We need to find the block before the current one, to see if it is free
      * and can be merged with this one.
      */

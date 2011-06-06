@@ -45,13 +45,13 @@ void buflib_print_allocs(struct buflib_context *ctx)
 
         handle_num = end - this;
         name = buflib_get_name(ctx, handle_num);
-        block_start = (union buflib_data*)name - 2;
+        block_start = (union buflib_data*)name - 3;
         alloc_start = buflib_get_data(ctx, handle_num);
         alloc_len = block_start->val * sizeof(union buflib_data);
 
-        printf("%s:\t%0p\n"
+        printf("%s(%d):\t%0p\n"
                "   \t%0p\n"
                "   \t%ld\n",
-               name?:"(null)", block_start, alloc_start, alloc_len);
+               name?:"(null)", handle_num, block_start, alloc_start, alloc_len);
     }
 }

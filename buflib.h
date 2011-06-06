@@ -52,11 +52,12 @@
     len = tmp_ptr2 - tmp_ptr1; \
     ptr = (typeof(ptr))tmp_ptr1; \
 }
-
+struct buflib_callbacks;
 union buflib_data
 {
     intptr_t val;
     char name;
+    struct buflib_callbacks* ops;
     union buflib_data *ptr;
 };
 
