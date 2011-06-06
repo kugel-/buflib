@@ -1,4 +1,5 @@
 
+#include <string.h>
 /**
  *
  * This are wrappers around the internal buflib_* which have the core context
@@ -31,6 +32,7 @@ int core_alloc(const char* name, size_t size);
  *
  * Returns: An integer handle identifying this allocation
  */
+struct buflib_callbacks;
 int core_alloc_ex(const char* name, size_t size, struct buflib_callbacks *ops);
 
 /**
@@ -41,7 +43,7 @@ int core_alloc_ex(const char* name, size_t size, struct buflib_callbacks *ops);
  *
  * Returns: An integer handle identifyign the new allocation.
  */
-int core_realloc(int handle, size_t new_size)
+int core_realloc(int handle, size_t new_size);
 
 /**
  * Free memory associated with the given handle
