@@ -408,6 +408,13 @@ buflib_available(struct buflib_context* ctx)
         return 0;
 }
 
+int
+buflib_alloc_maximum(struct buflib_context* ctx, const char* name, size_t *size, struct buflib_callbacks *ops)
+{
+    /* not implemented */
+    return -1;
+}
+
 void
 buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, size_t new_size)
 {

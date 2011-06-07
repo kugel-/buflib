@@ -99,10 +99,31 @@ struct buflib_callbacks {
 
 
 /**
+ * Gets all available memory from buflib, for temporary use.
+ * It aquires a lock so allocations from other threads will wait until the
+ * lock is released (by core_shrink()).
+ *
+ * Buflib may call the shrin_callback() after some time if it's in need of
+ * memory and core_shrink() has not been called yet.
+ *
+ * name: A string identifier giving this allocation a name
+ * size: The actual size will be returned into size
+ * ops: a struct with pointers to callback functions
+ *
+ * Returns: An integer handle identifying this allocation
+ */
+
+int core_alloc_maximum(const char* name, size_t *size, struct buflib_callbacks *ops);
+
+/**
  * Shrink the memory allocation associated with the given handle
  * Mainly intended to be used with the shrink callback (call this in the
  * callback and get return BUFLIB_CB_OK, but it can also be called outside
  *
+ * If a lock was aquired for this handle, the lock will be unlocked, assuming
+ * the allocation has freed memory for future allocation by other threads.
+ *
+ * handle: The handle identifying this allocation
  * new_start: the new start of the allocation
  * new_size: the new size of the allocation
  */
