@@ -31,6 +31,6 @@ int buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name,
                     struct buflib_callbacks *ops);
 void buflib_print_allocs(struct buflib_context *ctx);
 size_t buflib_available(struct buflib_context *ctx);
-void buflib_shrink(struct buflib_context *ctx, int handle, void* newstart, void* newend);
+void buflib_shrink(struct buflib_context *ctx, int handle, void* newstart, size_t new_size);
 struct buflib_callbacks* buflib_default_callbacks(void);
 #endif /* __NEW_APIS_H__ */

@@ -26,19 +26,14 @@ size_t core_available(void)
     return buflib_available(&core_ctx);
 }
 
-int core_realloc(int handle, size_t new_size)
-{
-    return buflib_realloc(&core_ctx, handle, new_size);
-}
-
 void core_free(int handle)
 {
     buflib_free(&core_ctx, handle);
 }
 
-void core_shrink(int handle, void* new_start, void* new_end)
+void core_shrink(int handle, void* new_start, size_t new_size)
 {
-    buflib_shrink(&core_ctx, handle, new_start, new_end);
+    buflib_shrink(&core_ctx, handle, new_start, new_size);
 }
 
 void core_print_allocs(void)

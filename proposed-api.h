@@ -38,17 +38,6 @@ struct buflib_callbacks;
 int core_alloc_ex(const char* name, size_t size, struct buflib_callbacks *ops);
 
 /**
- * Re-allocate memory assiciated by the given handle, preserving the data
- * upto the lesser of the old and new size.
- *
- * handle: The handle indicating the alloaction
- * new_size: How many bytes to allocate for the new allocation
- *
- * Returns: An integer handle identifyign the new allocation.
- */
-int core_realloc(int handle, size_t new_size);
-
-/**
  * Free memory associated with the given handle
  */
 void core_free(int handle);
@@ -114,9 +103,10 @@ struct buflib_callbacks {
  * Mainly intended to be used with the shrink callback (call this in the
  * callback and get return BUFLIB_CB_OK, but it can also be called outside
  *
- * new_start, new_end: The new boundaries of the allocation
+ * new_start: the new start of the allocation
+ * new_size: the new size of the allocation
  */
-void core_shrink(int handle, void* new_start, void* new_end);
+void core_shrink(int handle, void* new_start, size_t new_size);
 
 /**
  * Returns how many bytes left the buflib has to satisfy allocations (not

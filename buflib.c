@@ -408,15 +408,8 @@ buflib_available(struct buflib_context* ctx)
         return 0;
 }
 
-int
-buflib_realloc(struct buflib_context* ctx, int handle, size_t new_size)
-{
-    /* not implemented */
-    return -1;
-}
-
 void
-buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, void* newend)
+buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, size_t new_size)
 {
     /* not implemented */
     return;
