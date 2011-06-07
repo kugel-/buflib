@@ -1,4 +1,6 @@
 
+#ifndef __PROPOSED_API_H__
+#define __PROPOSED_API_H__
 #include <string.h>
 /**
  *
@@ -36,9 +38,10 @@ struct buflib_callbacks;
 int core_alloc_ex(const char* name, size_t size, struct buflib_callbacks *ops);
 
 /**
- * Re-allocate memory assiciated by the given id, preserving the data
+ * Re-allocate memory assiciated by the given handle, preserving the data
  * upto the lesser of the old and new size.
  *
+ * handle: The handle indicating the alloaction
  * new_size: How many bytes to allocate for the new allocation
  *
  * Returns: An integer handle identifyign the new allocation.
@@ -67,8 +70,8 @@ struct buflib_callbacks {
      * pointing to within the allocation. The size is unchanged
      *
      * handle: The corresponding handle
-     * old: The old start of the allocation
-     * new: The new start of the allocation
+     * current: The current start of the allocation
+     * new: The new start of the allocation, after data movement
      *
      * Return: Return BUFLIB_CB_OK, or BUFLIB_CB_DEFER if
      * movement is impossible in this moment
@@ -76,7 +79,7 @@ struct buflib_callbacks {
      * If NULL: this allocation must not be moved around by the buflib when
      * compation occurs
      */
-    int (*move_callback)(int handle, void* old, void* new);
+    int (*move_callback)(int handle, void* current, void* new);
     /**
      * This is called when the buflib desires to shrink a SHRINKABLE buffer
      * in order to satisfy new allocation and if moving other allocations
@@ -90,8 +93,8 @@ struct buflib_callbacks {
      * is impossible at this moment.
      *
      * if NULL: this allocation cannot be resized.
-     * It is recommended that allocation thatmust not move are
-     * at least RESIZABLE
+     * It is recommended that allocation that must not move are
+     * at least shrinkable
      */
     int (*shrink_callback)(int handle, void* start, size_t old_size);
 };
@@ -116,9 +119,27 @@ struct buflib_callbacks {
 void core_shrink(int handle, void* new_start, void* new_end);
 
 /**
- * Returns how many bytes left the buflib has to satisfy allocations
+ * Returns how many bytes left the buflib has to satisfy allocations (not
+ * accounting possible compaction)
  *
  * There might be more after a future compaction which is not handled by
  * this function.
  */
 size_t core_available(void);
+
+/**
+ * Prints an overview of all current allocations to stdout (not for Rockbox)
+ */
+
+void core_print_allocs(void);
+
+/**
+ * Returns the name, as given to core_alloc() and core_allloc_ex(), of the
+ * allocation associated with the given handle
+ *
+ * handle: The handle indicating the allocation
+ *
+ * Returns: A pointer to the string identifier of the allocation
+ */
+const char* core_get_alloc_name(int handle);
+#endif /* __PROPOSED_API_H__ */

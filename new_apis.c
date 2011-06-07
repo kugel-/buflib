@@ -20,7 +20,7 @@
 ****************************************************************************/
 
 #include "buflib.h"
-
+#include <stdio.h>
 
 const char* buflib_get_name(struct buflib_context *ctx, int handle)
 {

@@ -45,6 +45,13 @@
  * for the single-allocator case that use a predefined context.
  */
 
+/* Use this for the default callbacks.
+ *
+ * The default callbacks do nothing, therefore the address of this
+ * acts as a magic as to not even call the default callbacks
+ */
+static struct buflib_callbacks default_callbacks;
+
 /* Initialize buffer manager */
 void
 buflib_init(struct buflib_context *ctx, void *buf, size_t size)
@@ -160,7 +167,7 @@ buflib_compact(struct buflib_context *ctx)
                     handle, shift, shift*sizeof(union buflib_data));
             new_block = block + shift;
             /* call the callback before moving */
-            if (ops && ops->move_callback)
+            if (ops != (&default_callbacks) && ops->move_callback)
                 ops->move_callback(handle, tmp->ptr, tmp->ptr+shift);
 
             tmp->ptr += shift; /* update handle table */
@@ -223,11 +230,16 @@ buflib_buffer_in(struct buflib_context *ctx, int size)
     buflib_buffer_shift(ctx, -size);
 }
 
+struct buflib_callbacks* buflib_default_callbacks(void)
+{
+    return &default_callbacks;
+}
+
 /* Allocate a buffer of size bytes, returning a handle for it */
 int
 buflib_alloc(struct buflib_context *ctx, size_t size)
 {
-    return buflib_alloc_ex(ctx, size, NULL, NULL);
+    return buflib_alloc_ex(ctx, size, "", &default_callbacks);
 }
 
 int
@@ -381,4 +393,31 @@ buflib_free(struct buflib_context *ctx, int handle_num)
      */
     if (block < ctx->first_free_block)
         ctx->first_free_block = block;
+}
+
+size_t
+buflib_available(struct buflib_context* ctx)
+{
+    size_t diff = ctx->last_handle - ctx->alloc_end;
+    /* leave spaces for some future handles */
+    diff -= 128;
+
+    if (diff > 0)
+        return diff*sizeof(union buflib_data);
+    else
+        return 0;
+}
+
+int
+buflib_realloc(struct buflib_context* ctx, int handle, size_t new_size)
+{
+    /* not implemented */
+    return -1;
+}
+
+void
+buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, void* newend)
+{
+    /* not implemented */
+    return;
 }

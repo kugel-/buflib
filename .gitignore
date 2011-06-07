@@ -1,2 +1,4 @@
 *.o
-buflib
+*.a
+main
+test_move
