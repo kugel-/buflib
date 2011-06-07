@@ -37,6 +37,22 @@ int core_alloc(const char* name, size_t size);
 struct buflib_callbacks;
 int core_alloc_ex(const char* name, size_t size, struct buflib_callbacks *ops);
 
+
+/**
+ * Query the data pointer for the given handle. It's actually a cheap operation,
+ * so don't hesitate using it extensivly.
+ *
+ * Notice that you need to re-query after every direct or indirect yield(),
+ * because compaction can happen by other threads which may get your data
+ * moved around (or you can get notified about changes by callbacks,
+ * see further below).
+ *
+ * handle: The handle corresponding to the allocation
+ *
+ * Returns: The start pointer of the allocation
+ */
+void* core_get_data(int handle);
+
 /**
  * Free memory associated with the given handle
  */

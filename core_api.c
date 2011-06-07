@@ -26,6 +26,11 @@ size_t core_available(void)
     return buflib_available(&core_ctx);
 }
 
+void* core_get_data(int handle)
+{
+    return buflib_get_data(&core_ctx, handle);
+}
+
 void core_free(int handle)
 {
     buflib_free(&core_ctx, handle);
