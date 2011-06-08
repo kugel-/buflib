@@ -1,4 +1,4 @@
 *.o
 *.a
 main
-test_move
+test_*

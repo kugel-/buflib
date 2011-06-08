@@ -133,6 +133,32 @@ handle_table_shrink(struct buflib_context *ctx)
     return rv;
 }
 
+
+/* If shift is non-zero, it represents the number of places to move
+ * blocks in memory. Calculate the new address for this block,
+ * update its entry in the handle table, and then move its contents.
+ */
+static bool
+move_block(struct buflib_context* ctx, union buflib_data* block, int shift)
+{
+    union buflib_data *new_block, *tmp = block[1].ptr;
+    struct buflib_callbacks *ops = block[2].ops;
+    if (!ops->move_callback)
+        return false;
+    int handle = ctx->handle_table - tmp;
+    BDEBUGF("%s(): moving \"%s\"(id=%d) by %d(%d)\n", __func__, &block[3].name,
+            handle, shift, shift*sizeof(union buflib_data));
+    new_block = block + shift;
+    /* call the callback before moving, the default one needn't be called */
+    if (ops != (&default_callbacks))
+        ops->move_callback(handle, tmp->ptr, tmp->ptr+shift);
+
+    tmp->ptr += shift; /* update handle table */
+    memmove(new_block, block, block->val * sizeof(union buflib_data));
+
+    return true;
+}
+
 /* Compact allocations and handle table, adjusting handle pointers as needed.
  * Return true if any space was freed or consolidated, false otherwise.
  */
@@ -140,7 +166,9 @@ static bool
 buflib_compact(struct buflib_context *ctx)
 {
     BDEBUGF("%s(): Compacting!\n", __func__);
-    union buflib_data *block = ctx->first_free_block, *new_block;
+    /* track a hole if exists */
+    union buflib_data *hole = NULL;
+    union buflib_data *block = ctx->first_free_block;
     int shift = 0, len;
     /* Store the results of attempting to shrink the handle table */
     bool ret = handle_table_shrink(ctx);
@@ -154,25 +182,41 @@ buflib_compact(struct buflib_context *ctx)
             len = -len;
             continue;
         }
-        /* If shift is non-zero, it represents the number of places to move
-         * blocks down in memory. Calculate the new address for this block,
-         * update its entry in the handle table, and then move its contents.
-         */
-        if (shift)
+        /* move the allocation by shift, or into the hole if possible */
+        if (shift || hole)
         {
-            union buflib_data* tmp = block[1].ptr;
-            struct buflib_callbacks *ops = block[2].ops;
-            int handle = ctx->handle_table - tmp;
-            BDEBUGF("%s(): moving \"%s\"(id=%d) by %d(%d)\n", __func__, &block[3].name,
-                    handle, shift, shift*sizeof(union buflib_data));
-            new_block = block + shift;
-            /* call the callback before moving */
-            if (ops != (&default_callbacks) && ops->move_callback)
-                ops->move_callback(handle, tmp->ptr, tmp->ptr+shift);
-
-            tmp->ptr += shift; /* update handle table */
-            memmove(new_block, block, len * sizeof(union buflib_data));
+            int this_shift = shift;
+            int hole_len;
+            if (hole)
+            {
+                hole_len = -hole->val;
+                if (hole_len >= len)
+                {
+                    this_shift = hole - block;
+                    hole_len = -hole->val;
+                    BDEBUGF("Trying to fill hole. %d left\n", hole_len);
+                }
+            }
+            if (!move_block(ctx, block, this_shift))
+                goto must_not_move;
+            if (hole)
+            {
+                if (len ==  hole_len)
+                    hole = NULL;
+                else
+                {
+                    hole += len;
+                    /* val needs to be what's left in the whole and negative */
+                    hole->val = len - hole_len;
+                }
+                BDEBUGF("Filled hole: %d left\n", hole ? -hole->val : 0);
+            }
         }
+        continue;
+must_not_move:
+        hole = block + shift;
+        shift = 0;
+        BDEBUGF("A hole is created due to MUST_NOT_MOVE (%p, %zu)\n", hole, -hole->val);
     }
     /* Move the end-of-allocation mark, and return true if any new space has
      * been freed.
