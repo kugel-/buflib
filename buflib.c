@@ -52,6 +52,15 @@
  */
 static struct buflib_callbacks default_callbacks;
 
+#if defined(ROCKBOX)
+#define YIELD() yield()
+#elif defined(__unix) && (__unix == 1)
+#include <pthread.h>
+#define YIELD() pthread_yield()
+#else
+#warning YIELD not defined. Will busy-wait
+#define  YIELD()
+#endif
 /* Initialize buffer manager */
 void
 buflib_init(struct buflib_context *ctx, void *buf, size_t size)
@@ -289,6 +298,9 @@ int
 buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name,
                 struct buflib_callbacks *ops)
 {
+    /* busy wait if there's a thread owning the lock */
+    while (ctx->handle_lock != 0) YIELD();
+
     union buflib_data *handle, *block;
     size_t name_len = name ? ALIGN_UP(strlen(name), sizeof(union buflib_data)) : 0;
     bool last = false;
@@ -459,13 +471,25 @@ buflib_available(struct buflib_context* ctx)
 int
 buflib_alloc_maximum(struct buflib_context* ctx, const char* name, size_t *size, struct buflib_callbacks *ops)
 {
-    /* not implemented */
-    return -1;
+    int handle;
+
+    /* -1 to guarantee enough space for the handle */
+    *size = ctx->last_handle - ctx->alloc_end - 1;
+    handle = buflib_alloc_ex(ctx, *size, name, ops);
+
+    if (handle >= 0) /* shouldn't happen ?? */
+        ctx->handle_lock = handle;
+    
+    return handle;
 }
 
 void
 buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, size_t new_size)
 {
+    /* if the handle is the one aquired with buflib_alloc_maximum()
+     * unlock buflib_alloc() as part of the shrink */
+    if (ctx->handle_lock == handle)
+        ctx->handle_lock = 0;
     /* not implemented */
     return;
 }
