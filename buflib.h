@@ -70,6 +70,7 @@ struct buflib_context
     union buflib_data *first_free_block;
     union buflib_data *buf_start;
     union buflib_data *alloc_end;
+    union buflib_data *hole; /* sorry, only tracking 1 hole for now */
     bool compact;
 };
 

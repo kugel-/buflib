@@ -67,6 +67,7 @@ buflib_init(struct buflib_context *ctx, void *buf, size_t size)
     ctx->first_free_handle = bd_buf + size - 1;
     ctx->first_free_block = bd_buf;
     ctx->buf_start = bd_buf;
+    ctx->hole = NULL;
     /* A marker is needed for the end of allocated data, to make sure that it
      * does not collide with the handle table, and to detect end-of-buffer.
      */
@@ -166,8 +167,6 @@ static bool
 buflib_compact(struct buflib_context *ctx)
 {
     BDEBUGF("%s(): Compacting!\n", __func__);
-    /* track a hole if exists */
-    union buflib_data *hole = NULL;
     union buflib_data *block = ctx->first_free_block;
     int shift = 0, len;
     /* Store the results of attempting to shrink the handle table */
@@ -183,40 +182,40 @@ buflib_compact(struct buflib_context *ctx)
             continue;
         }
         /* move the allocation by shift, or into the hole if possible */
-        if (shift || hole)
+        if (shift || ctx->hole)
         {
             int this_shift = shift;
             int hole_len;
-            if (hole)
+            if (ctx->hole)
             {
-                hole_len = -hole->val;
+                hole_len = -ctx->hole->val;
                 if (hole_len >= len)
                 {
-                    this_shift = hole - block;
-                    hole_len = -hole->val;
+                    this_shift = ctx->hole - block;
+                    hole_len = -ctx->hole->val;
                     BDEBUGF("Trying to fill hole. %d left\n", hole_len);
                 }
             }
             if (!move_block(ctx, block, this_shift))
                 goto must_not_move;
-            if (hole)
+            if (ctx->hole)
             {
                 if (len ==  hole_len)
-                    hole = NULL;
+                    ctx->hole = NULL;
                 else
                 {
-                    hole += len;
+                    ctx->hole += len;
                     /* val needs to be what's left in the whole and negative */
-                    hole->val = len - hole_len;
+                    ctx->hole->val = len - hole_len;
                 }
-                BDEBUGF("Filled hole: %d left\n", hole ? -hole->val : 0);
+                BDEBUGF("Filled hole: %d left\n", ctx->hole ? -ctx->hole->val : 0);
             }
         }
         continue;
 must_not_move:
-        hole = block + shift;
+        ctx->hole = block + shift;
         shift = 0;
-        BDEBUGF("A hole is created due to MUST_NOT_MOVE (%p, %zu)\n", hole, -hole->val);
+        BDEBUGF("A hole is created due to MUST_NOT_MOVE (%p, %zu)\n", ctx->hole, -ctx->hole->val);
     }
     /* Move the end-of-allocation mark, and return true if any new space has
      * been freed.
@@ -315,7 +314,8 @@ handle_alloc:
     }
 
 buffer_alloc:
-    for (block = ctx->first_free_block;; block += block_len)
+    /* the first part ensures block is non-NULL in the loop */
+    for (block = ctx->hole ?: ctx->first_free_block;;block += block_len)
     {
         /* If the last used block extends all the way to the handle table, the
          * block "after" it doesn't have a header. Because of this, it's easier
@@ -341,6 +341,10 @@ buffer_alloc:
          */
         if ((size_t)block_len >= size)
             break;
+        /* if the current block is the hole, the next one needs to be
+         * first_free_block */
+        if (block == ctx->hole)
+            block_len = ctx->first_free_block - ctx->hole;
     }
     if (!block)
     {
