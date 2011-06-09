@@ -156,7 +156,7 @@ move_block(struct buflib_context* ctx, union buflib_data* block, int shift)
     if (!ops->move_callback)
         return false;
     int handle = ctx->handle_table - tmp;
-    BDEBUGF("%s(): moving \"%s\"(id=%d) by %d(%d)\n", __func__, &block[3].name,
+    BDEBUGF("%s(): moving \"%s\"(id=%d) by %d(%d)\n", __func__, block[3].name,
             handle, shift, shift*sizeof(union buflib_data));
     new_block = block + shift;
     /* call the callback before moving, the default one needn't be called */
@@ -381,8 +381,8 @@ buffer_alloc:
     block->val = size;
     block[1].ptr = handle;
     block[2].ops = ops;
-    strcpy(&block[3].name, name);
-    name_len_slot = (union buflib_data*)ALIGN_UP((uintptr_t)((char*)&block[3] + name_len), sizeof(union buflib_data));
+    strcpy(block[3].name, name);
+    name_len_slot = (union buflib_data*)ALIGN_UP((uintptr_t)(block[3].name + name_len), sizeof(union buflib_data));
     name_len_slot->val = 1 + name_len/sizeof(union buflib_data);
     handle->ptr = name_len_slot + 1;
     /* If we have just taken the first free block, the next allocation search

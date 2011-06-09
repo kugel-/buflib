@@ -28,7 +28,7 @@ const char* buflib_get_name(struct buflib_context *ctx, int handle)
     size_t len = data[-1].val;
     if (len <= 1)
         return NULL;
-    const char *ret = &data[-len].name;
+    const char *ret = data[-len].name;
 }
 
 void buflib_print_allocs(struct buflib_context *ctx)

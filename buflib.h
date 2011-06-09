@@ -57,7 +57,7 @@
 union buflib_data
 {
     intptr_t val;
-    char name;
+    char name[1]; /* actually a variable sized string */
     struct buflib_callbacks* ops;
     union buflib_data *ptr;
 };
