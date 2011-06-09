@@ -1,6 +1,31 @@
 #include <stdio.h>
 #include "proposed-api.h"
-
+/*
+ * Expected output (64bit)
+--------------------
+after freeing first: available: 9072
+after freeing forth: available: 9072
+buflib_compact(): Compacting!
+A hole is created due to MUST_NOT_MOVE (0x6024c0, 2565)
+Trying to fill hole. 2565 left
+move_block(): moving "third"(id=3) by -3210(-25680)
+Move! third, 0x608938, 0x6024e8, 25680
+Filled hole: 640 left
+fifth handle: 0
+sixth(1):	0x6060e8
+   	0x606110
+   	2088
+second(2):	0x6074e8
+   	0x607510
+   	5160
+third(3):	0x6024c0
+   	0x6024e8
+   	15400
+seventh(4):	0x606910
+   	0x606938
+   	552
+--------------------
+*/
 static int move_size;
 int move_callback(int handle, void* old, void* new)
 {
