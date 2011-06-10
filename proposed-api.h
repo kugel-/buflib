@@ -92,6 +92,7 @@ struct buflib_callbacks {
      * Move data around as you need and call core_shrink() from within the
      * callback to do the shrink (buflib will not move data as part of shrinking)
      *
+     * hint: bit mask containing hints on how shrinking is desired
      * handle: The corresponding handle
      * start: The old start of the allocation
      *
@@ -102,8 +103,13 @@ struct buflib_callbacks {
      * It is recommended that allocation that must not move are
      * at least shrinkable
      */
-    int (*shrink_callback)(int handle, void* start, size_t old_size);
+    int (*shrink_callback)(int handle, unsigned hints, void* start, size_t old_size);
 };
+
+#define BUFLIB_SHRINK_POS_MASK ((1<<0|1<<1)<<30)
+#define BUFLIB_SHRINK_SIZE_MASK (~BUFLIB_SHRINK_POS_MASK)
+#define BUFLIB_SHRINK_POS_FRONT (1u<<31)
+#define BUFLIB_SHRINK_POS_BACK  (1u<<30)
 
 /**
  * Possible return values for the callbacks, some of them can cause

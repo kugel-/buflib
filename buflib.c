@@ -125,6 +125,15 @@ void handle_free(struct buflib_context *ctx, union buflib_data *handle)
         ctx->compact = false;
 }
 
+
+static union buflib_data* handle_to_block(struct buflib_context* ctx, int handle)
+{    
+    union buflib_data* name_field =
+                (union buflib_data*)buflib_get_name(ctx, handle);
+
+    return name_field - 3;
+}
+
 /* Shrink the handle table, returning true if its size was reduced, false if
  * not
  */
@@ -152,7 +161,7 @@ move_block(struct buflib_context* ctx, union buflib_data* block, int shift)
 {
     union buflib_data *new_block, *tmp = block[1].ptr;
     struct buflib_callbacks *ops = block[2].ops;
-    if (!ops->move_callback)
+    if (ops != &default_callbacks && !ops->move_callback)
         return false;
     int handle = ctx->handle_table - tmp;
     BDEBUGF("%s(): moving \"%s\"(id=%d) by %d(%d)\n", __func__, block[3].name,
@@ -175,8 +184,7 @@ static bool
 buflib_compact(struct buflib_context *ctx)
 {
     BDEBUGF("%s(): Compacting!\n", __func__);
-    union buflib_data *first_free = ctx->first_free_block,
-                      *block = first_free;
+    union buflib_data *block = ctx->first_free_block;
     int shift = 0, len;
     /* Store the results of attempting to shrink the handle table */
     bool ret = handle_table_shrink(ctx);
@@ -210,10 +218,43 @@ buflib_compact(struct buflib_context *ctx)
      */
     ctx->alloc_end += shift;
     /* only move first_free_block up if it wasn't already by a hole */
-    if (first_free > ctx->alloc_end)
+    if (ctx->first_free_block > ctx->alloc_end)
         ctx->first_free_block = ctx->alloc_end;
     ctx->compact = true;
     return ret || shift;
+}
+
+static bool
+buflib_compact_and_shrink(struct buflib_context *ctx, unsigned shrink_hints)
+{
+    bool result = false;
+    if (!ctx->compact) /* don't compact if not needed */
+        result = buflib_compact(ctx);
+    if (!result)
+    {
+        union buflib_data* this;
+        for(this = ctx->buf_start; this < ctx->alloc_end; this += abs(this->val))
+        {
+            if (this->val > 0 && this[2].ops != &default_callbacks
+                              && this[2].ops->shrink_callback)
+            {
+                int ret;
+                int handle = ctx->handle_table - this[1].ptr;
+                char* data = (char*)this[1].ptr->ptr;
+                ret = this[2].ops->shrink_callback(handle, shrink_hints,
+                                            data, (char*)(this+this->val)-data);
+                result |= (ret == BUFLIB_CB_OK);
+                /* this might have changed in the callback (if
+                 * it shrinked from the top), get it again */
+                this = handle_to_block(ctx, handle);
+            }
+        }
+        /* shrinking was successful at least once, try compaction again */
+        if (result)
+            result |= buflib_compact(ctx);
+    }
+
+    return result;
 }
 
 /* Shift buffered items by size units, and update handle pointers. The shift
@@ -268,13 +309,6 @@ struct buflib_callbacks* buflib_default_callbacks(void)
     return &default_callbacks;
 }
 
-static union buflib_data* handle_to_block(struct buflib_context* ctx, int handle)
-{    
-    union buflib_data* name_field =
-                (union buflib_data*)buflib_get_name(ctx, handle);
-
-    return name_field - 3;
-}
 /* Allocate a buffer of size bytes, returning a handle for it */
 int
 buflib_alloc(struct buflib_context *ctx, size_t size)
@@ -310,7 +344,23 @@ handle_alloc:
         if (!ctx->compact && buflib_compact(ctx))
             goto handle_alloc;
         else
+        {   /* first try to shrink the alloc before the handle table
+             * to make room for new handles */
+            int handle = ctx->handle_table - ctx->last_handle;
+            union buflib_data* last_block = handle_to_block(ctx, handle);
+            struct buflib_callbacks* ops = last_block[2].ops;
+            if (ops != &default_callbacks && ops->shrink_callback)
+            {
+                char *data = buflib_get_data(ctx, handle);
+                unsigned hint = BUFLIB_SHRINK_POS_BACK | 10*sizeof(union buflib_data);
+                if (ops->shrink_callback(handle, hint, data, 
+                        (char*)(last_block+last_block->val)-data) == BUFLIB_CB_OK)
+                {   /* retry one more time */
+                    goto handle_alloc;
+                }
+            }
             return 0;
+        }
     }
 
 buffer_alloc:
@@ -347,7 +397,7 @@ buffer_alloc:
          * allocation did not trigger compaction already, since there will
          * be no further gain.
          */
-        if (!ctx->compact && buflib_compact(ctx))
+        if (buflib_compact_and_shrink(ctx, size&BUFLIB_SHRINK_SIZE_MASK))
         {
             goto buffer_alloc;
         } else {
