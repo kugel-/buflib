@@ -153,7 +153,9 @@ int core_alloc_maximum(const char* name, size_t *size, struct buflib_callbacks *
  * new_start: the new start of the allocation
  * new_size: the new size of the allocation
  *
- * Returns: true if shrinking was successful, false otherwise
+ * Returns: true if shrinking was successful. Otherwise it returns false,
+ * without having modified memory and without having unlocked the lock.
+ * 
  */
 bool core_shrink(int handle, void* new_start, size_t new_size);
 

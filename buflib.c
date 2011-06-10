@@ -543,7 +543,11 @@ buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, size_t new
          * shrink at the front of block
          * start by locating the new_block */
         new_block -= metadata_size / sizeof(union buflib_data);
-        /* now move metadata over, i.e. pointer to handle table entry and name */
+
+        /* now move metadata over, i.e. pointer to handle table entry and name
+         * This is actually the point of no return. Data in the allocation is
+         * being modified, and therefore we must successfully finish the shrink
+         * operation */
         memmove(new_block, block, metadata_size);
         /* mark the old block unallocated and update the size of the
          * new block as well as the handle table entry */
