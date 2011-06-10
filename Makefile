@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS += -g -O0 -DDEBUG -std=gnu99
+CFLAGS += -g -O0 -std=gnu99
 LDFLAGS += -L. -lpthread
 
 .PHONY: clean all
@@ -16,7 +16,8 @@ TARGETS = $(TARGETS_OBJ:.o=)
 
 LIB_OBJ = 	buflib.o \
 			new_apis.o \
-			core_api.o
+			core_api.o \
+			strlcpy.o
 LIB_FILE = libbuflib.a
 LIB = buflib
 

@@ -26,6 +26,7 @@
 #include <stdlib.h> /* for abs() */
 #include "buflib.h"
 #include "new_apis.h"
+#include "strlcpy.h"
 /* The main goal of this design is fast fetching of the pointer for a handle.
  * For that reason, the handles are stored in a table at the end of the buffer
  * with a fixed address, so that returning the pointer for a handle is a simple
@@ -521,7 +522,7 @@ buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, size_t new
     bool ret = false;
     char* oldstart = buflib_get_data(ctx, handle);
     if ((char*)newstart < oldstart)
-        goto unlock_and_return;
+        return false;
     union buflib_data *block = handle_to_block(ctx, handle),
                       *old_next_block = block + block->val;
     size_t metadata_size = oldstart - (char*)block;
@@ -530,26 +531,60 @@ buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, size_t new
         ALIGN_UP(metadata_size+new_size, sizeof(union buflib_data))/sizeof(union buflib_data);
 
     if (((char*)newstart+new_size) > (char*)old_next_block)
-        goto unlock_and_return;
+        return false;
 
-    /* optimization for the case only size changed */
-    if (newstart == oldstart)
+    if (oldstart != newstart)
     {
-        /* first, we need to find if the block after the alloc is
-         * unallocated, in order to enlarge it */
-        union buflib_data *new_next_block;
-        /* no failure to shrink for here on */
-size_changed:
-        ret = true;
+        /* newstart isn't necessarily properly, aligned but it needn't be
+         * since it's only dereferenced by the user code */
+        union buflib_data* new_block = (union buflib_data*)ALIGN_DOWN(
+                            (intptr_t)newstart, sizeof(union buflib_data));
+        /*
+         * shrink at the front of block
+         * start by locating the new_block */
+        new_block -= metadata_size / sizeof(union buflib_data);
+        /* now move metadata over, i.e. pointer to handle table entry and name */
+        memmove(new_block, block, metadata_size);
+        /* mark the old block unallocated and update the size of the
+         * new block as well as the handle table entry */
+        block->val = block - new_block;
+        new_block[0].val = new_block_size;
+        new_block[1].ptr->ptr = newstart;
+        union buflib_data *freed_block = block,
+                          *free_before = ctx->first_free_block,
+                          *next_block = free_before;
+        /* We need to find the block before the current one, to see if it is free
+         * and can be merged with this one.
+         */
+        while (next_block < freed_block)
+        {
+            free_before = next_block;
+            next_block += abs(block->val);
+        }
+        /* If next_block == free_before, the above loop didn't go anywhere.
+         * If it did, and the block before this one is empty, we can combine them.
+         */
+        if (next_block == freed_block && next_block != free_before && free_before->val < 0)
+            free_before->val += freed_block->val;
+        else if (next_block == free_before)
+            ctx->first_free_block = freed_block;
+            
+        /* We didn't handle size changes yet, assign block to the new one
+         * the code below the wants block whether it changed or not */
+        block = new_block;
+    }
 
-        /* now change the size of this block, this will align down for us */
-        block->val = new_block_size;
-        new_next_block = block + abs(block->val);
+    /* first, we need to find if the block after the alloc is
+     * unallocated, in order to enlarge it */
+    union buflib_data *new_next_block;
 
-        /* Nothing to do? */
-        if (old_next_block == block)
-            goto unlock_and_return;
+    /* now change the size of this block, this will align down for us */
+    block->val = new_block_size;
+    new_next_block = block + abs(block->val);
 
+    /* Nothing to do? */
+    if (old_next_block != block)
+    {
         if (ctx->alloc_end == old_next_block)
             ctx->alloc_end = new_next_block;
         else if (old_next_block->val < 0)
@@ -564,52 +599,12 @@ size_changed:
         /* update first_free_block for the newly created free space */
         if (ctx->first_free_block > new_next_block)
             ctx->first_free_block = new_next_block;
-        goto unlock_and_return;
     }
 
-    /* newstart isn't necessarily properly, aligned but it needn't be
-     * since it's only dereferenced by the user code */
-    union buflib_data* new_block = (union buflib_data*)ALIGN_DOWN((intptr_t)newstart, sizeof(union buflib_data));
-    /*
-     * shrink at the front of block
-     * start by locating the new_block */
-    new_block -= metadata_size / sizeof(union buflib_data);
-    /* now move metadata over, i.e. pointer to handle table entry and name */
-    memmove(new_block, block, metadata_size);
-    /* mark the old block unallocated and update the size of the
-     * new block as well as the handle table entry */
-    block->val = block - new_block;
-    new_block[0].val = new_block_size;
-    new_block[1].ptr->ptr = newstart;
-    union buflib_data *freed_block = block,
-                      *free_before = ctx->first_free_block,
-                      *next_block = free_before;
-    /* We need to find the block before the current one, to see if it is free
-     * and can be merged with this one.
-     */
-    while (next_block < freed_block)
-    {
-        free_before = next_block;
-        next_block += abs(block->val);
-    }
-    /* If next_block == free_before, the above loop didn't go anywhere.
-     * If it did, and the block before this one is empty, we can combine them.
-     */
-    if (next_block == freed_block && next_block != free_before && free_before->val < 0)
-        free_before->val += freed_block->val;
-    else if (next_block == free_before)
-        ctx->first_free_block = freed_block;
-
-    /* We didn't handle size changes yet if newstart != oldstart,
-     * but the code is the same so jump up */
-    block = new_block;
-    goto size_changed;
-
-unlock_and_return:
     /* if the handle is the one aquired with buflib_alloc_maximum()
      * unlock buflib_alloc() as part of the shrink */
     if (ctx->handle_lock == handle)
         ctx->handle_lock = 0;
 
-    return ret;
+    return true;
 }
