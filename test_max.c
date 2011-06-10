@@ -1,6 +1,25 @@
 #include <stdio.h>
 #include "proposed-api.h"
 
+
+/*
+ *  Expected output (64bit):
+-------------------
+get_all(1):	0x6027a0
+   	0x6027c8
+   	6424
+get_all(1):	0x6027a0
+   	0x6027c8
+   	3232
+get_all(1):	0x6027a0
+   	0x6027c8
+   	3232
+dont freeze(2):	0x603440
+   	0x603470
+   	152
+0x6027a0: val:  404 (get_all)
+0x603440: val:   19 (dont freeze)
+-------------------
 struct buflib_callbacks ops;
 int main(void)
 {
