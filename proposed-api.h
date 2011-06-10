@@ -25,7 +25,7 @@ void buflib_core_init(void);
 int core_alloc(const char* name, size_t size);
 
 /**
- * Allocate memory from the core's memory pool with additional callbacks
+ * Allocates memory from the core's memory pool with additional callbacks
  * and flags
  * 
  * name: A string identifier giving this allocation a name
@@ -40,7 +40,7 @@ int core_alloc_ex(const char* name, size_t size, struct buflib_callbacks *ops);
 
 
 /**
- * Query the data pointer for the given handle. It's actually a cheap operation,
+ * Queries the data pointer for the given handle. It's actually a cheap operation,
  * so don't hesitate using it extensivly.
  *
  * Notice that you need to re-query after every direct or indirect yield(),
@@ -55,7 +55,7 @@ int core_alloc_ex(const char* name, size_t size, struct buflib_callbacks *ops);
 void* core_get_data(int handle);
 
 /**
- * Free memory associated with the given handle
+ * Frees memory associated with the given handle
  */
 void core_free(int handle);
 
@@ -79,8 +79,7 @@ struct buflib_callbacks {
      * current: The current start of the allocation
      * new: The new start of the allocation, after data movement
      *
-     * Return: Return BUFLIB_CB_OK, or BUFLIB_CB_DEFER if
-     * movement is impossible in this moment
+     * Return: Return BUFLIB_CB_OK
      *
      * If NULL: this allocation must not be moved around by the buflib when
      * compation occurs
