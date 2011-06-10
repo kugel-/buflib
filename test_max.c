@@ -7,6 +7,9 @@ int main(void)
     buflib_core_init();
     size_t size;
     int handle = core_alloc_maximum("get_all", &size, &ops);
+
+    if (handle <= 0)
+        printf("core_alloc_maximum error\n");
     int handle2;
 
     core_print_allocs();
@@ -24,6 +27,7 @@ int main(void)
         printf("handle 2 failed!\n");
 
     core_print_allocs();
+    core_print_blocks();
 
     core_free(handle);
     core_free(handle2);

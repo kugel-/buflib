@@ -19,16 +19,17 @@
 *
 ****************************************************************************/
 
-#include "buflib.h"
 #include <stdio.h>
+#include <stdlib.h> /* for abs() */
+#include "buflib.h"
 
 const char* buflib_get_name(struct buflib_context *ctx, int handle)
 {
-    union buflib_data *data = buflib_get_data(ctx, handle);
+    union buflib_data *data = (union buflib_data*)ALIGN_DOWN((intptr_t)buflib_get_data(ctx, handle), sizeof (*data));
     size_t len = data[-1].val;
     if (len <= 1)
         return NULL;
-    const char *ret = data[-len].name;
+    return data[-len].name;
 }
 
 void buflib_print_allocs(struct buflib_context *ctx)
@@ -53,5 +54,18 @@ void buflib_print_allocs(struct buflib_context *ctx)
                "   \t%0p\n"
                "   \t%ld\n",
                name?:"(null)", handle_num, block_start, alloc_start, alloc_len);
+    }
+}
+
+void buflib_print_blocks(struct buflib_context *ctx)
+{
+    for(union buflib_data* this = ctx->buf_start;
+                           this < ctx->alloc_end;
+                           this += abs(this->val))
+    {
+        char buf[128] = { 0 };
+        printf("%08p: val: %4d (%s)\n",
+                        this, this->val,
+                        this->val > 0? this[3].name:"<unallocated>");
     }
 }

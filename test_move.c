@@ -33,6 +33,8 @@ int main(void)
 
     int ret = !(!strcmp(core_get_data(second), "Here's data") && move_size >= 20<<10);
 
+    core_print_blocks();
+
     core_free(second);
     core_free(third);
 

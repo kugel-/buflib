@@ -2,6 +2,7 @@
 #ifndef __PROPOSED_API_H__
 #define __PROPOSED_API_H__
 #include <string.h>
+#include <stdbool.h>
 /**
  *
  * This are wrappers around the internal buflib_* which have the core context
@@ -89,7 +90,8 @@ struct buflib_callbacks {
      * This is called when the buflib desires to shrink a SHRINKABLE buffer
      * in order to satisfy new allocation and if moving other allocations
      * failed.
-     * Call core_shrink() from within the callback to do the shrink.
+     * Move data around as you need and call core_shrink() from within the
+     * callback to do the shrink (buflib will not move data as part of shrinking)
      *
      * handle: The corresponding handle
      * start: The old start of the allocation
@@ -109,9 +111,9 @@ struct buflib_callbacks {
  * compaction to fail and therefore new allocations to fail
  */
 /* Everything alright */
-#define BUFLIB_CB_OK
+#define BUFLIB_CB_OK 0
 /* Tell buflib that resizing failed, possibly future making allocations fail */
-#define BUFLIB_CB_CANNOT_SHRINK
+#define BUFLIB_CB_CANNOT_SHRINK 1
 
 
 /**
@@ -139,11 +141,16 @@ int core_alloc_maximum(const char* name, size_t *size, struct buflib_callbacks *
  * If a lock was aquired for this handle, the lock will be unlocked, assuming
  * the allocation has freed memory for future allocation by other threads.
  *
+ * Note that you must move/copy data around yourself before calling this,
+ * buflib will not do this as part of shrinking.
+ *
  * handle: The handle identifying this allocation
  * new_start: the new start of the allocation
  * new_size: the new size of the allocation
+ *
+ * Returns: true if shrinking was successful, false otherwise
  */
-void core_shrink(int handle, void* new_start, size_t new_size);
+bool core_shrink(int handle, void* new_start, size_t new_size);
 
 /**
  * Returns how many bytes left the buflib has to satisfy allocations (not
@@ -159,6 +166,7 @@ size_t core_available(void);
  */
 
 void core_print_allocs(void);
+void core_print_blocks(void);
 
 /**
  * Returns the name, as given to core_alloc() and core_allloc_ex(), of the

@@ -41,15 +41,20 @@ int core_alloc_maximum(const char* name, size_t *size, struct buflib_callbacks *
     return buflib_alloc_maximum(&core_ctx, name, size, ops);
 }
 
-void core_shrink(int handle, void* new_start, size_t new_size)
+bool core_shrink(int handle, void* new_start, size_t new_size)
 {
-    buflib_shrink(&core_ctx, handle, new_start, new_size);
+    return buflib_shrink(&core_ctx, handle, new_start, new_size);
 }
 
 void core_print_allocs(void)
 {
     buflib_print_allocs(&core_ctx);
 }
+void core_print_blocks(void)
+{
+    buflib_print_blocks(&core_ctx);
+}
+
 const char* core_get_alloc_name(int handle)
 {
     return buflib_get_name(&core_ctx, handle);
