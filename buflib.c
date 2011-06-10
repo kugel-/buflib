@@ -474,6 +474,9 @@ buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, size_t new
     union buflib_data *block = handle_to_block(ctx, handle),
                       *old_next_block = block + block->val;
     size_t metadata_size = oldstart - (char*)block;
+    /* this is used for buflib_data->val */
+    size_t new_block_size =
+        ALIGN_UP(metadata_size+new_size, sizeof(union buflib_data))/sizeof(union buflib_data);
 
     if (((char*)newstart+new_size) > (char*)old_next_block)
         goto unlock_and_return;
@@ -489,7 +492,7 @@ size_changed:
         ret = true;
 
         /* now change the size of this block, this will align down for us */
-        block->val = (metadata_size+new_size)/sizeof(union buflib_data);
+        block->val = new_block_size;
         new_next_block = block + abs(block->val);
 
         /* Nothing to do? */
@@ -502,7 +505,7 @@ size_changed:
         {   /* enlarge next block by moving it up */
             new_next_block->val = old_next_block->val - (old_next_block - new_next_block);
         }
-        else
+        else if (old_next_block != new_next_block)
         {   /* creating a hole */
             /* must be negative to indicate being unallocated */
             new_next_block->val = new_next_block - old_next_block;
@@ -525,7 +528,7 @@ size_changed:
     /* mark the old block unallocated and update the size of the
      * new block as well as the handle table entry */
     block->val = block - new_block;
-    new_block[0].val = (metadata_size+new_size)/sizeof(union buflib_data);
+    new_block[0].val = new_block_size;
     new_block[1].ptr->ptr = newstart;
     union buflib_data *freed_block = block,
                       *free_before = ctx->first_free_block,
