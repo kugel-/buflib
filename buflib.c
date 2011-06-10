@@ -488,12 +488,12 @@ buflib_free(struct buflib_context *ctx, int handle_num)
 size_t
 buflib_available(struct buflib_context* ctx)
 {
-    size_t diff = ctx->last_handle - ctx->alloc_end;
-    /* leave spaces for some future handles */
-    diff -= 128;
+    /* reserve 16 for the name, subtract 5 elements for
+     * val, ptr, name_len, ops and the handle table entry*/
+    size_t diff = (ctx->last_handle - ctx->alloc_end - 5) - 16;
 
     if (diff > 0)
-        return diff*sizeof(union buflib_data);
+        return diff;
     else
         return 0;
 }
@@ -503,10 +503,11 @@ buflib_alloc_maximum(struct buflib_context* ctx, const char* name, size_t *size,
 {
     int handle;
 
-    /* -1 to guarantee enough space for the handle, -4 for other metadata */
-    *size = (ctx->last_handle - ctx->alloc_end - 5)*sizeof(union buflib_data)
-            - ALIGN_UP(strlen(name), sizeof(union buflib_data));
-    handle = buflib_alloc_ex(ctx, *size, name, ops);
+    /* limit name to 16 since that's what buflib_available() accounts for it */
+    char buf[16];
+    *size = buflib_available(ctx);
+    strlcpy(buf, name, sizeof(buf));
+    handle = buflib_alloc_ex(ctx, *size, buf, ops);
 
     if (handle > 0) /* shouldn't happen ?? */
         ctx->handle_lock = handle;
