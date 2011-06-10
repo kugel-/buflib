@@ -1,10 +1,15 @@
 CC ?= gcc
-CFLAGS += -g -O0 -DDEBUG
+CFLAGS += -g -O0 -DDEBUG -std=gnu99
 LDFLAGS += -L. -lpthread
 
 .PHONY: clean all
 
-TARGETS =   main test_move test_move2 test_max
+TARGETS_OBJ = test_main.o   \
+			  test_move.o   \
+			  test_move2.o  \
+			  test_max.o    \
+			  test_shrink.o
+TARGETS = $(TARGETS_OBJ:.o=)
 
 LIB_OBJ = 	buflib.o \
 			new_apis.o \
@@ -12,28 +17,28 @@ LIB_OBJ = 	buflib.o \
 LIB_FILE = libbuflib.a
 LIB = buflib
 
+
+ifndef V
+SILENT:=@
+else
+VERBOSEOPT:=-v
+endif
+
+PRINTS=$(SILENT)$(call info,$(1))
+
 all: $(TARGETS)
 
+test_%: test_%.o $(LIB_FILE)
+	$(call PRINTS,LD $@)$(CC) $(LDFLAGS) -o $@ $< -l$(LIB)
+
+$(TARGETS): $(TARGETS_OBJ) $(LIB_FILE)
+
 %.o: %.c
-	$(CC) $(CFLAGS) -c $<
-
-main: main.o $(LIB)
-	$(CC) $(LDFLAGS) $@.o -o $@ -l$(LIB)
-
-test_move: test_move.o $(LIB)
-	$(CC) $(LDFLAGS) $@.o -o $@ -l$(LIB)
-
-test_move2: test_move2.o $(LIB)
-	$(CC) $(LDFLAGS) $@.o -o $@ -l$(LIB)
-
-test_max: test_max.o $(LIB)
-	$(CC) $(LDFLAGS) $@.o -o $@ -l$(LIB)
-
-$(LIB): $(LIB_FILE)
-	$(echo Hey)
+	$(call PRINTS,CC $<)$(CC) $(CFLAGS) -c $<
 
 $(LIB_FILE): $(LIB_OBJ)
-	ar rcs $@ $^
+	$(call PRINTS,AR $@)ar rcs $@ $^
+
 
 clean:
 	rm *.o $(TARGETS) $(LIB_FILE)
