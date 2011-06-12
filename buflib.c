@@ -62,6 +62,18 @@ static struct buflib_callbacks default_callbacks;
 #warning YIELD not defined. Will busy-wait
 #define  YIELD()
 #endif
+
+/* from "system.h"
+/* align up or down to nearest integer multiple of a */
+#define _ALIGN_DOWN(n, a)     ((typeof(n))((((intptr_t)n))&~((a)-1L)))
+#define _ALIGN_UP(n, a)       _ALIGN_DOWN((n)+((a)-1),a)
+
+#define B_ALIGN_DOWN(x) \
+    _ALIGN_DOWN(x, sizeof(union buflib_data))
+
+#define B_ALIGN_UP(x) \
+    _ALIGN_UP(x, sizeof(union buflib_data))
+
 /* Initialize buffer manager */
 void
 buflib_init(struct buflib_context *ctx, void *buf, size_t size)
@@ -325,7 +337,7 @@ buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name,
     while (ctx->handle_lock != 0) YIELD();
 
     union buflib_data *handle, *block;
-    size_t name_len = name ? ALIGN_UP(strlen(name), sizeof(union buflib_data)) : 0;
+    size_t name_len = name ? B_ALIGN_UP(strlen(name)) : 0;
     bool last = false;
     /* This really is assigned a value before use */
     int block_len;
@@ -416,7 +428,7 @@ buffer_alloc:
     block[1].ptr = handle;
     block[2].ops = ops;
     strcpy(block[3].name, name);
-    name_len_slot = (union buflib_data*)ALIGN_UP((uintptr_t)(block[3].name + name_len), sizeof(union buflib_data));
+    name_len_slot = (union buflib_data*)B_ALIGN_UP(block[3].name + name_len);
     name_len_slot->val = 1 + name_len/sizeof(union buflib_data);
     handle->ptr = name_len_slot + 1;
     /* If we have just taken the first free block, the next allocation search
@@ -528,7 +540,7 @@ buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, size_t new
     size_t metadata_size = oldstart - (char*)block;
     /* this is used for buflib_data->val */
     size_t new_block_size =
-        ALIGN_UP(metadata_size+new_size, sizeof(union buflib_data))/sizeof(union buflib_data);
+        B_ALIGN_UP(metadata_size+new_size)/sizeof(union buflib_data);
 
     if (((char*)newstart+new_size) > (char*)old_next_block)
         return false;
@@ -537,8 +549,7 @@ buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, size_t new
     {
         /* newstart isn't necessarily properly, aligned but it needn't be
          * since it's only dereferenced by the user code */
-        union buflib_data* new_block = (union buflib_data*)ALIGN_DOWN(
-                            (intptr_t)newstart, sizeof(union buflib_data));
+        union buflib_data* new_block = B_ALIGN_DOWN(newstart);
         /*
          * shrink at the front of block
          * start by locating the new_block */

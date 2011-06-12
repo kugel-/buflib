@@ -20,6 +20,7 @@ dont freeze(2):	0x603440
 0x6027a0: val:  404 (get_all)
 0x603440: val:   19 (dont freeze)
 -------------------
+*/
 struct buflib_callbacks ops;
 int main(void)
 {
