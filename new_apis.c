@@ -37,7 +37,7 @@ void buflib_print_allocs(struct buflib_context *ctx)
     union buflib_data *this, *end = ctx->handle_table;
     for(this = end - 1; this >= ctx->last_handle; this--)
     {
-        if (!this->ptr) continue;
+        if (!this->alloc) continue;
 
         int handle_num;
         const char *name;
@@ -45,9 +45,9 @@ void buflib_print_allocs(struct buflib_context *ctx)
         intptr_t alloc_len;
 
         handle_num = end - this;
+        alloc_start = buflib_get_data(ctx, handle_num);
         name = buflib_get_name(ctx, handle_num);
         block_start = (union buflib_data*)name - 3;
-        alloc_start = buflib_get_data(ctx, handle_num);
         alloc_len = block_start->val * sizeof(union buflib_data);
 
         printf("%s(%d):\t%0p\n"

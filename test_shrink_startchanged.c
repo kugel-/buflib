@@ -24,7 +24,7 @@ int main(void)
 
     strcpy((char*)core_get_data(second)+0x102, "foobar");
     core_shrink(second, (char*)core_get_data(second)+0x102, (10<<10)-0x102);
-    memset(core_get_data(second), 0, (10<<10)-0x102);
+    memset(core_get_data(second) + sizeof("foobar"), 0, (10<<10)-0x102-sizeof("foobar"));
     core_print_blocks();
     
     int ret =  strcmp(core_get_data(second), "foobar")

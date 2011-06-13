@@ -35,9 +35,9 @@ int move_callback(int handle, void* current, void* new)
     printf("Move!\n");
 }
 
-int shrink_callback(int handle, void* start, size_t old_size)
+int shrink_callback(int handle, unsigned hints, void* start, size_t old_size)
 {
-    (void)handle;(void)start;(void)old_size;
+    (void)handle;(void)start;(void)old_size;(void)hints;
     printf("Shrink");
 }
 

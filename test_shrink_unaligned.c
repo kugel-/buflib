@@ -6,8 +6,8 @@
 -------------------
 0x602520: val: 1285 (first)
 0x604d48: val:  -32 (<unallocated>)
-0x604e48: val: 1221 (second)
-0x607470: val:  -32 (<unallocated>)
+0x604e48: val: 1222 (second)
+0x607470: val:  -31 (<unallocated>)
 0x607570: val: 1285 (third)
 -------------------
 */

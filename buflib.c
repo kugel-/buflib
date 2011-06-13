@@ -65,7 +65,7 @@ static struct buflib_callbacks default_callbacks;
 
 /* from "system.h"
 /* align up or down to nearest integer multiple of a */
-#define _ALIGN_DOWN(n, a)     ((typeof(n))((((intptr_t)n))&~((a)-1L)))
+#define _ALIGN_DOWN(n, a)     ((typeof(n))((((intptr_t)(n)))&~((a)-1L)))
 #define _ALIGN_UP(n, a)       _ALIGN_DOWN((n)+((a)-1),a)
 
 #define B_ALIGN_DOWN(x) \
@@ -106,7 +106,7 @@ union buflib_data* handle_alloc(struct buflib_context *ctx)
      * of the table is reached.
      */
     for (handle = ctx->first_free_handle; handle >= ctx->last_handle; handle--)
-        if (!handle->ptr)
+        if (!handle->alloc)
             break;
     /* If the search went past the end of the table, it means we need to extend
      * the table to get a new handle.
@@ -126,7 +126,7 @@ union buflib_data* handle_alloc(struct buflib_context *ctx)
 static inline
 void handle_free(struct buflib_context *ctx, union buflib_data *handle)
 {
-    handle->ptr = 0;
+    handle->alloc = 0;
     /* Update free handle lower bound if this handle has a lower index than the
      * old one.
      */
@@ -156,7 +156,7 @@ handle_table_shrink(struct buflib_context *ctx)
 {
     bool rv;
     union buflib_data *handle;
-    for (handle = ctx->last_handle; !(handle->ptr); handle++);
+    for (handle = ctx->last_handle; !(handle->alloc); handle++);
     if (handle > ctx->first_free_handle)
         ctx->first_free_handle = handle - 1;
     rv = handle == ctx->last_handle;
@@ -172,7 +172,8 @@ handle_table_shrink(struct buflib_context *ctx)
 static bool
 move_block(struct buflib_context* ctx, union buflib_data* block, int shift)
 {
-    union buflib_data *new_block, *tmp = block[1].ptr;
+    char* new_start;
+    union buflib_data *new_block, *tmp = block[1].handle;
     struct buflib_callbacks *ops = block[2].ops;
     if (ops != &default_callbacks && !ops->move_callback)
         return false;
@@ -180,11 +181,12 @@ move_block(struct buflib_context* ctx, union buflib_data* block, int shift)
     BDEBUGF("%s(): moving \"%s\"(id=%d) by %d(%d)\n", __func__, block[3].name,
             handle, shift, shift*sizeof(union buflib_data));
     new_block = block + shift;
+    new_start = tmp->alloc + shift*sizeof(union buflib_data);
     /* call the callback before moving, the default one needn't be called */
     if (ops != (&default_callbacks))
-        ops->move_callback(handle, tmp->ptr, tmp->ptr+shift);
+        ops->move_callback(handle, tmp->alloc, new_start);
 
-    tmp->ptr += shift; /* update handle table */
+    tmp->alloc = new_start; /* update handle table */
     memmove(new_block, block, block->val * sizeof(union buflib_data));
 
     return true;
@@ -241,7 +243,8 @@ static bool
 buflib_compact_and_shrink(struct buflib_context *ctx, unsigned shrink_hints)
 {
     bool result = false;
-    if (!ctx->compact) /* don't compact if not needed */
+    /* if something compacted before already there will be no further gain */
+    if (!ctx->compact)
         result = buflib_compact(ctx);
     if (!result)
     {
@@ -252,8 +255,8 @@ buflib_compact_and_shrink(struct buflib_context *ctx, unsigned shrink_hints)
                               && this[2].ops->shrink_callback)
             {
                 int ret;
-                int handle = ctx->handle_table - this[1].ptr;
-                char* data = (char*)this[1].ptr->ptr;
+                int handle = ctx->handle_table - this[1].handle;
+                char* data = this[1].handle->alloc;
                 ret = this[2].ops->shrink_callback(handle, shrink_hints,
                                             data, (char*)(this+this->val)-data);
                 result |= (ret == BUFLIB_CB_OK);
@@ -278,10 +281,10 @@ buflib_buffer_shift(struct buflib_context *ctx, int shift)
 {
     memmove(ctx->buf_start + shift, ctx->buf_start,
         (ctx->alloc_end - ctx->buf_start) * sizeof(union buflib_data));
-    union buflib_data *ptr;
-    for (ptr = ctx->last_handle; ptr < ctx->handle_table; ptr++)
-        if (ptr->ptr)
-            ptr->ptr += shift;
+    union buflib_data *handle;
+    for (handle = ctx->last_handle; handle < ctx->handle_table; handle++)
+        if (handle->alloc)
+            handle->alloc += shift;
     ctx->first_free_block += shift;
     ctx->buf_start += shift;
     ctx->alloc_end += shift;
@@ -338,7 +341,7 @@ buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name,
 
     union buflib_data *handle, *block;
     size_t name_len = name ? B_ALIGN_UP(strlen(name)) : 0;
-    bool last = false;
+    bool last;
     /* This really is assigned a value before use */
     int block_len;
     size += name_len;
@@ -377,6 +380,9 @@ handle_alloc:
     }
 
 buffer_alloc:
+    /* need to re-evaluate last before the loop because the last allocation
+     * possibly made room in its front to fit this, so last would be wrong */
+    last = false;
     for (block = ctx->first_free_block;;block += block_len)
     {
         /* If the last used block extends all the way to the handle table, the
@@ -406,11 +412,9 @@ buffer_alloc:
     }
     if (!block)
     {
-        /* Try compacting if allocation failed, but only if the handle
-         * allocation did not trigger compaction already, since there will
-         * be no further gain.
-         */
-        if (buflib_compact_and_shrink(ctx, size&BUFLIB_SHRINK_SIZE_MASK))
+        /* Try compacting if allocation failed */
+        if (buflib_compact_and_shrink(ctx,
+                    (size*sizeof(union buflib_data))&BUFLIB_SHRINK_SIZE_MASK))
         {
             goto buffer_alloc;
         } else {
@@ -425,12 +429,12 @@ buffer_alloc:
      */
     union buflib_data *name_len_slot;
     block->val = size;
-    block[1].ptr = handle;
+    block[1].handle = handle;
     block[2].ops = ops;
     strcpy(block[3].name, name);
     name_len_slot = (union buflib_data*)B_ALIGN_UP(block[3].name + name_len);
     name_len_slot->val = 1 + name_len/sizeof(union buflib_data);
-    handle->ptr = name_len_slot + 1;
+    handle->alloc = (char*)(name_len_slot + 1);
     /* If we have just taken the first free block, the next allocation search
      * can save some time by starting after this block.
      */
@@ -490,7 +494,7 @@ buflib_free(struct buflib_context *ctx, int handle_num)
             block->val += next_block->val;
     }
     handle_free(ctx, handle);
-    handle->ptr = NULL;
+    handle->alloc = NULL;
     /* If this block is before first_free_block, it becomes the new starting
      * point for free-block search.
      */
@@ -501,9 +505,11 @@ buflib_free(struct buflib_context *ctx, int handle_num)
 size_t
 buflib_available(struct buflib_context* ctx)
 {
-    /* reserve 16 for the name, subtract 5 elements for
-     * val, ptr, name_len, ops and the handle table entry*/
-    size_t diff = (ctx->last_handle - ctx->alloc_end - 5) - 16;
+    /* subtract 5 elements for
+     * val, handle, name_len, ops and the handle table entry*/
+    size_t diff = (ctx->last_handle - ctx->alloc_end - 5);
+    diff *= sizeof(union buflib_data); /* make it bytes */
+    diff -= 16; /* reserve 16 for the name */
 
     if (diff > 0)
         return diff;
@@ -529,42 +535,44 @@ buflib_alloc_maximum(struct buflib_context* ctx, const char* name, size_t *size,
 }
 
 bool
-buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, size_t new_size)
+buflib_shrink(struct buflib_context* ctx, int handle, void* new_start, size_t new_size)
 {
     bool ret = false;
     char* oldstart = buflib_get_data(ctx, handle);
-    if ((char*)newstart < oldstart)
+    char* newstart = new_start;
+    char* newend = newstart + new_size;
+
+    /* newstart must be higher and new_size not "negative" */
+    if (newstart < oldstart || newend < newstart)
         return false;
     union buflib_data *block = handle_to_block(ctx, handle),
-                      *old_next_block = block + block->val;
-    size_t metadata_size = oldstart - (char*)block;
-    /* this is used for buflib_data->val */
-    size_t new_block_size =
-        B_ALIGN_UP(metadata_size+new_size)/sizeof(union buflib_data);
+                      *old_next_block = block + block->val,
+                /* newstart isn't necessarily properly aligned but it
+                 * needn't be since it's only dereferenced by the user code */
+                      *aligned_newstart = (union buflib_data*)B_ALIGN_DOWN(newstart),
+                      *aligned_oldstart = (union buflib_data*)B_ALIGN_DOWN(oldstart),
+                      *new_next_block =   (union buflib_data*)B_ALIGN_UP(newend),
+                      *new_block, metadata_size;
 
-    if (((char*)newstart+new_size) > (char*)old_next_block)
+    /* growing is not supported */
+    if (new_next_block > old_next_block)
         return false;
 
-    if (oldstart != newstart)
-    {
-        /* newstart isn't necessarily properly, aligned but it needn't be
-         * since it's only dereferenced by the user code */
-        union buflib_data* new_block = B_ALIGN_DOWN(newstart);
-        /*
-         * shrink at the front of block
-         * start by locating the new_block */
-        new_block -= metadata_size / sizeof(union buflib_data);
+    metadata_size.val = aligned_oldstart - block;
+    /* update val and the handle table entry */
+    new_block = aligned_newstart - metadata_size.val;
+    block[0].val = new_next_block - new_block;
 
-        /* now move metadata over, i.e. pointer to handle table entry and name
+    block[1].handle->alloc = newstart;
+    if (block != new_block)
+    {
+        /* move metadata over, i.e. pointer to handle table entry and name
          * This is actually the point of no return. Data in the allocation is
          * being modified, and therefore we must successfully finish the shrink
          * operation */
-        memmove(new_block, block, metadata_size);
-        /* mark the old block unallocated and update the size of the
-         * new block as well as the handle table entry */
+        memmove(new_block, block, metadata_size.val*sizeof(metadata_size));
+        /* mark the old block unallocated */
         block->val = block - new_block;
-        new_block[0].val = new_block_size;
-        new_block[1].ptr->ptr = newstart;
         union buflib_data *freed_block = block,
                           *free_before = ctx->first_free_block,
                           *next_block = free_before;
@@ -589,16 +597,8 @@ buflib_shrink(struct buflib_context* ctx, int handle, void* newstart, size_t new
         block = new_block;
     }
 
-    /* first, we need to find if the block after the alloc is
-     * unallocated, in order to enlarge it */
-    union buflib_data *new_next_block;
-
-    /* now change the size of this block, this will align down for us */
-    block->val = new_block_size;
-    new_next_block = block + abs(block->val);
-
-    /* Nothing to do? */
-    if (old_next_block != block)
+    /* Now deal with size changes that create free blocks after the allocation */
+    if (old_next_block != new_next_block)
     {
         if (ctx->alloc_end == old_next_block)
             ctx->alloc_end = new_next_block;

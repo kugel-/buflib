@@ -59,7 +59,8 @@ union buflib_data
     intptr_t val;
     char name[1]; /* actually a variable sized string */
     struct buflib_callbacks* ops;
-    union buflib_data *ptr;
+    char* alloc;
+    union buflib_data *handle;
 };
 
 struct buflib_context
@@ -84,6 +85,6 @@ void buflib_buffer_in(struct buflib_context *ctx, int size);
 
 static inline void* buflib_get_data(struct buflib_context *context, int handle)
 {
-    return (void*)(context->handle_table[-handle].ptr);
+    return (void*)(context->handle_table[-handle].alloc);
 }
 #endif
