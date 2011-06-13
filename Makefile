@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS += -g -O0 -std=gnu99
+CFLAGS += -g -O1 -DDEBUG -std=gnu99
 LDFLAGS += -L. -lpthread
 
 .PHONY: clean all

@@ -6,8 +6,6 @@
 after freeing first: available: 9072
 after freeing forth: available: 9072
 buflib_compact(): Compacting!
-A hole is created due to MUST_NOT_MOVE (0x6024c0, 2565)
-Trying to fill hole. 2565 left
 move_block(): moving "third"(id=3) by -3210(-25680)
 Move! third, 0x608938, 0x6024e8, 25680
 Filled hole: 640 left
@@ -68,6 +66,7 @@ int main(void)
     int seventh = core_alloc("seventh", 512);
 
     core_print_allocs();
+    core_print_blocks();
     int ret = !(!strcmp(core_get_data(second), "Here's data") && move_size >= 20<<10);
 
     core_free(second);

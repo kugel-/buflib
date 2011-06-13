@@ -177,6 +177,7 @@ move_block(struct buflib_context* ctx, union buflib_data* block, int shift)
     struct buflib_callbacks *ops = block[2].ops;
     if (ops != &default_callbacks && !ops->move_callback)
         return false;
+        
     int handle = ctx->handle_table - tmp;
     BDEBUGF("%s(): moving \"%s\"(id=%d) by %d(%d)\n", __func__, block[3].name,
             handle, shift, shift*sizeof(union buflib_data));
@@ -199,11 +200,11 @@ static bool
 buflib_compact(struct buflib_context *ctx)
 {
     BDEBUGF("%s(): Compacting!\n", __func__);
-    union buflib_data *block = ctx->first_free_block;
+    union buflib_data *first_free = ctx->first_free_block, *block;
     int shift = 0, len;
     /* Store the results of attempting to shrink the handle table */
     bool ret = handle_table_shrink(ctx);
-    for(; block != ctx->alloc_end; block += len)
+    for(block = first_free; block != ctx->alloc_end; block += len)
     {
         len = block->val;
         /* This block is free, add its length to the shift value */
@@ -212,6 +213,19 @@ buflib_compact(struct buflib_context *ctx)
             shift += len;
             len = -len;
             continue;
+        }
+        /* attempt to fill any hole */
+        if (abs(ctx->first_free_block->val) > block->val)
+        {
+            intptr_t size = first_free->val;
+            if (move_block(ctx, block, first_free - block))
+            {
+                block->val *= -1;
+                block = ctx->first_free_block;
+                ctx->first_free_block += block->val;
+                ctx->first_free_block->val = size + block->val;
+                continue;
+            }
         }
         /* attempt move the allocation by shift */
         if (shift)
