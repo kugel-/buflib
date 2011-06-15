@@ -514,6 +514,11 @@ buflib_free(struct buflib_context *ctx, int handle_num)
      */
     if (block < ctx->first_free_block)
         ctx->first_free_block = block;
+
+    /* if the handle is the one aquired with buflib_alloc_maximum()
+     * unlock buflib_alloc() as part of the shrink */
+    if (ctx->handle_lock == handle)
+        ctx->handle_lock = 0;
 }
 
 size_t
