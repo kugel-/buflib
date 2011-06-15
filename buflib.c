@@ -138,7 +138,7 @@ void handle_free(struct buflib_context *ctx, union buflib_data *handle)
         ctx->compact = false;
 }
 
-
+/* Get the start block of an allocation */
 static union buflib_data* handle_to_block(struct buflib_context* ctx, int handle)
 {    
     union buflib_data* name_field =
@@ -175,7 +175,7 @@ move_block(struct buflib_context* ctx, union buflib_data* block, int shift)
     char* new_start;
     union buflib_data *new_block, *tmp = block[1].handle;
     struct buflib_callbacks *ops = block[2].ops;
-    if (ops != &default_callbacks && !ops->move_callback)
+    if (ops && !ops->move_callback)
         return false;
         
     int handle = ctx->handle_table - tmp;
@@ -184,7 +184,7 @@ move_block(struct buflib_context* ctx, union buflib_data* block, int shift)
     new_block = block + shift;
     new_start = tmp->alloc + shift*sizeof(union buflib_data);
     /* call the callback before moving, the default one needn't be called */
-    if (ops != (&default_callbacks))
+    if (ops)
         ops->move_callback(handle, tmp->alloc, new_start);
 
     tmp->alloc = new_start; /* update handle table */
@@ -253,6 +253,11 @@ buflib_compact(struct buflib_context *ctx)
     return ret || shift;
 }
 
+/* Compact the buffer by trying both shrinking and moving.
+ *
+ * Try to move first. If unsuccesfull, try to shrink. If that was successful
+ * try to move once more as there might be more room now.
+ */
 static bool
 buflib_compact_and_shrink(struct buflib_context *ctx, unsigned shrink_hints)
 {
@@ -265,7 +270,7 @@ buflib_compact_and_shrink(struct buflib_context *ctx, unsigned shrink_hints)
         union buflib_data* this;
         for(this = ctx->buf_start; this < ctx->alloc_end; this += abs(this->val))
         {
-            if (this->val > 0 && this[2].ops != &default_callbacks
+            if (this->val > 0 && this[2].ops
                               && this[2].ops->shrink_callback)
             {
                 int ret;
@@ -334,17 +339,19 @@ buflib_buffer_in(struct buflib_context *ctx, int size)
     buflib_buffer_shift(ctx, -size);
 }
 
-struct buflib_callbacks* buflib_default_callbacks(void)
-{
-    return &default_callbacks;
-}
-
 /* Allocate a buffer of size bytes, returning a handle for it */
 int
 buflib_alloc(struct buflib_context *ctx, size_t size)
 {
-    return buflib_alloc_ex(ctx, size, "", &default_callbacks);
+    return buflib_alloc_ex(ctx, size, "<anonymous>", &default_callbacks);
 }
+
+/* Allocate a buffer of size bytes, returning a handle for it.
+ *
+ * The additional name parameter gives the allocation a human-readable name,
+ * the ops parameter points to caller-implemented callbacks for moving and
+ * shrinking. NULL for default callbacks
+ */
 
 int
 buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name,
@@ -379,7 +386,7 @@ handle_alloc:
             int handle = ctx->handle_table - ctx->last_handle;
             union buflib_data* last_block = handle_to_block(ctx, handle);
             struct buflib_callbacks* ops = last_block[2].ops;
-            if (ops != &default_callbacks && ops->shrink_callback)
+            if (ops && ops->shrink_callback)
             {
                 char *data = buflib_get_data(ctx, handle);
                 unsigned hint = BUFLIB_SHRINK_POS_BACK | 10*sizeof(union buflib_data);
@@ -444,7 +451,7 @@ buffer_alloc:
     union buflib_data *name_len_slot;
     block->val = size;
     block[1].handle = handle;
-    block[2].ops = ops;
+    block[2].ops = ops ?: &default_callbacks;
     strcpy(block[3].name, name);
     name_len_slot = (union buflib_data*)B_ALIGN_UP(block[3].name + name_len);
     name_len_slot->val = 1 + name_len/sizeof(union buflib_data);
@@ -517,10 +524,11 @@ buflib_free(struct buflib_context *ctx, int handle_num)
 
     /* if the handle is the one aquired with buflib_alloc_maximum()
      * unlock buflib_alloc() as part of the shrink */
-    if (ctx->handle_lock == handle)
+    if (ctx->handle_lock == handle_num)
         ctx->handle_lock = 0;
 }
 
+/* Return the maximum allocatable memory in bytes */
 size_t
 buflib_available(struct buflib_context* ctx)
 {
@@ -536,6 +544,14 @@ buflib_available(struct buflib_context* ctx)
         return 0;
 }
 
+/*
+ * Allocate all available (as returned by buflib_available()) memory and return
+ * a handle to it
+ *
+ * This grabs a lock which can only be unlocked by buflib_free() or
+ * buflib_shrink(), to protect from further allocations (which couldn't be
+ * serviced anyway).
+ */
 int
 buflib_alloc_maximum(struct buflib_context* ctx, const char* name, size_t *size, struct buflib_callbacks *ops)
 {
@@ -553,6 +569,10 @@ buflib_alloc_maximum(struct buflib_context* ctx, const char* name, size_t *size,
     return handle;
 }
 
+/* Shrink the allocation indicated by the handle according to new_start and
+ * new_size. Grow is not possible, therefore new_start and new_start + new_size
+ * must be within the original allocation
+ */
 bool
 buflib_shrink(struct buflib_context* ctx, int handle, void* new_start, size_t new_size)
 {

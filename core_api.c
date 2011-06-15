@@ -13,7 +13,7 @@ void buflib_core_init(void)
 
 int core_alloc(const char* name, size_t size)
 {
-    return buflib_alloc_ex(&core_ctx, size, name, buflib_default_callbacks());
+    return buflib_alloc_ex(&core_ctx, size, name, NULL);
 }
 
 int core_alloc_ex(const char* name, size_t size, struct buflib_callbacks *ops)
