@@ -367,7 +367,7 @@ buflib_alloc_ex(struct buflib_context *ctx, size_t size, const char *name,
     while (ctx->handle_lock != 0) YIELD();
 
     union buflib_data *handle, *block;
-    size_t name_len = name ? B_ALIGN_UP(strlen(name)) : 0;
+    size_t name_len = name ? B_ALIGN_UP(strlen(name)+1) : 0;
     bool last;
     /* This really is assigned a value before use */
     int block_len;
@@ -582,7 +582,6 @@ buflib_alloc_maximum(struct buflib_context* ctx, const char* name, size_t *size,
 bool
 buflib_shrink(struct buflib_context* ctx, int handle, void* new_start, size_t new_size)
 {
-    bool ret = false;
     char* oldstart = buflib_get_data(ctx, handle);
     char* newstart = new_start;
     char* newend = newstart + new_size;
