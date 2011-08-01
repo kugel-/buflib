@@ -168,6 +168,9 @@ handle_table_shrink(struct buflib_context *ctx)
 /* If shift is non-zero, it represents the number of places to move
  * blocks in memory. Calculate the new address for this block,
  * update its entry in the handle table, and then move its contents.
+ *
+ * Returns false if moving was unsucessful
+ * (NULL callback or BUFLIB_CB_CANNOT_MOVE was returned)
  */
 static bool
 move_block(struct buflib_context* ctx, union buflib_data* block, int shift)
@@ -185,8 +188,11 @@ move_block(struct buflib_context* ctx, union buflib_data* block, int shift)
     new_start = tmp->alloc + shift*sizeof(union buflib_data);
     /* call the callback before moving, the default one needn't be called */
     if (ops)
-        ops->move_callback(handle, tmp->alloc, new_start);
-
+    {
+        if (ops->move_callback(handle, tmp->alloc, new_start)
+                == BUFLIB_CB_CANNOT_MOVE)
+            return false;
+    }
     tmp->alloc = new_start; /* update handle table */
     memmove(new_block, block, block->val * sizeof(union buflib_data));
 

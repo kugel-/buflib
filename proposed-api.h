@@ -79,7 +79,8 @@ struct buflib_callbacks {
      * current: The current start of the allocation
      * new: The new start of the allocation, after data movement
      *
-     * Return: Return BUFLIB_CB_OK
+     * Return: Return BUFLIB_CB_OK, or BUFLIB_CB_CANNOT_MOVE if movement
+     * is impossible at this moment.
      *
      * If NULL: this allocation must not be moved around by the buflib when
      * compation occurs
@@ -117,6 +118,8 @@ struct buflib_callbacks {
  */
 /* Everything alright */
 #define BUFLIB_CB_OK 0
+/* Tell buflib that moving failed. Buflib may retry to move at any point */
+#define BUFLIB_CB_CANNOT_MOVE 1
 /* Tell buflib that resizing failed, possibly future making allocations fail */
 #define BUFLIB_CB_CANNOT_SHRINK 1
 
